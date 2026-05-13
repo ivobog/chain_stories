@@ -28,6 +28,8 @@ app:
       access-token-ttl-minutes: ${JWT_ACCESS_TOKEN_TTL_MINUTES:15}
       refresh-token-ttl-days: ${JWT_REFRESH_TOKEN_TTL_DAYS:30}
       password-reset-token-ttl-minutes: ${PASSWORD_RESET_TOKEN_TTL_MINUTES:30}
+  subscriptions:
+    mock-purchases-enabled: ${SUBSCRIPTIONS_MOCK_PURCHASES_ENABLED:false}
 
 management:
   endpoints:

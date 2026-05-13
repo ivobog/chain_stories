@@ -300,12 +300,19 @@ Deliverables:
 
 Primary APIs:
 
+- `GET /api/v1/rooms`
 - `POST /api/v1/rooms`
+- `GET /api/v1/rooms/code/{roomCode}/preview`
 - `POST /api/v1/rooms/{roomCode}/join`
 - `GET /api/v1/rooms/{roomId}`
 - `POST /api/v1/rooms/{roomId}/close`
+- `PATCH /api/v1/rooms/{roomId}/settings`
+- `POST /api/v1/rooms/{roomId}/leave`
 - `POST /api/v1/rooms/{roomId}/participants/{userId}/kick`
 - `GET /api/v1/me/entitlements`
+- `GET /api/v1/me/subscription`
+- `POST /api/v1/me/subscription/mock-purchase`
+- `POST /api/v1/me/subscription/cancel`
 
 Testing:
 
@@ -686,14 +693,21 @@ Me/profile:
 
 - `GET /me`
 - `GET /me/entitlements`
+- `GET /me/subscription`
+- `POST /me/subscription/mock-purchase`
+- `POST /me/subscription/cancel`
 - `PATCH /me/profile`
 
 Rooms:
 
+- `GET /rooms`
 - `POST /rooms`
+- `GET /rooms/code/{roomCode}/preview`
 - `POST /rooms/{roomCode}/join`
 - `GET /rooms/{roomId}`
 - `POST /rooms/{roomId}/close`
+- `PATCH /rooms/{roomId}/settings`
+- `POST /rooms/{roomId}/leave`
 - `POST /rooms/{roomId}/participants/{userId}/kick`
 
 Games:

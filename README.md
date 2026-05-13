@@ -53,6 +53,19 @@ Useful endpoints:
 - `GET http://localhost:8080/api/v1/me`
 - `PATCH http://localhost:8080/api/v1/me/profile`
 - `DELETE http://localhost:8080/api/v1/me`
+- `GET http://localhost:8080/api/v1/me/entitlements`
+- `GET http://localhost:8080/api/v1/me/subscription`
+- `POST http://localhost:8080/api/v1/me/subscription/mock-purchase`
+- `POST http://localhost:8080/api/v1/me/subscription/cancel`
+- `GET http://localhost:8080/api/v1/rooms`
+- `POST http://localhost:8080/api/v1/rooms`
+- `GET http://localhost:8080/api/v1/rooms/code/{roomCode}/preview`
+- `POST http://localhost:8080/api/v1/rooms/{roomCode}/join`
+- `GET http://localhost:8080/api/v1/rooms/{roomId}`
+- `POST http://localhost:8080/api/v1/rooms/{roomId}/close`
+- `PATCH http://localhost:8080/api/v1/rooms/{roomId}/settings`
+- `POST http://localhost:8080/api/v1/rooms/{roomId}/leave`
+- `POST http://localhost:8080/api/v1/rooms/{roomId}/participants/{userId}/kick`
 
 ## Mobile
 
@@ -72,6 +85,8 @@ For non-local environments, set `JWT_ALLOW_INSECURE_DEV_SECRET=false` and provid
 
 Account deletion is a soft delete with privacy cleanup: active refresh tokens are revoked and stored user/profile identifiers are anonymized so the original email can be reused.
 
+Mock subscription purchase APIs are disabled by default. Set `SUBSCRIPTIONS_MOCK_PURCHASES_ENABLED=true` only for local/test flows until real store receipt validation is implemented.
+
 ## Current Phase
 
-Phase 0: repository foundation, local infrastructure, backend shell, mobile shell, CI, and architecture decision records.
+Phase 2 in progress: room and entitlement foundation. Users can create, join, leave, close, and manage private rooms with plan-based player limits.
