@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Chain Stories",
+    "slug": "chain-stories",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "scheme": "chainstories",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#111827"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
