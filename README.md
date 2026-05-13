@@ -92,6 +92,10 @@ Account deletion is a soft delete with privacy cleanup: active refresh tokens ar
 
 Mock subscription purchase APIs are disabled by default. Set `SUBSCRIPTIONS_MOCK_PURCHASES_ENABLED=true` only for local/test flows until real store receipt validation is implemented.
 
+AI story generation uses `AI_PROVIDER=mock` by default so local development and tests do not need external credentials. To use OpenAI for Phase 5 generation, set `AI_PROVIDER=openai`, provide `OPENAI_API_KEY`, and optionally override `AI_OPENAI_MODEL`, `AI_OPENAI_BASE_URL`, `AI_OPENAI_CONNECT_TIMEOUT`, or `AI_OPENAI_READ_TIMEOUT`. The backend sends structured JSON schema requests and still validates, moderates, retries, and records attempts before accepting a story segment.
+
+AI observability is available through logs, the `ai_generation_attempts` table, and Micrometer metrics. In local development, expose metrics by adding `metrics` to `management.endpoints.web.exposure.include`, then inspect `ai_generation_attempts_total`, `ai_generation_attempt_duration`, and `ai_generation_failures_total` through Actuator.
+
 ## Current Phase
 
-Phase 4 in progress: WebSocket multiplayer. The backend exposes `/ws/game`, authenticates STOMP connections with JWT bearer tokens, authorizes room-topic and user-queue subscriptions, publishes room/game events to `/topic/rooms/{roomId}`, sends private kick events on `/user/queue/events`, has integration coverage for live room-topic and private user-queue delivery, supports reconnect state recovery through room resume and `GET /api/v1/games/{gameId}`, and the mobile app has reusable REST/WebSocket client modules.
+Phase 5 in progress: AI story loop. The backend now routes submitted words through a configurable provider-neutral story generation pipeline with word moderation, prompt building, mock and OpenAI provider options, structured output validation, output moderation, bounded retry policy, persisted generation attempt telemetry, Micrometer AI attempt metrics, and realtime `AI_GENERATION_STARTED` / `STORY_SEGMENT_ADDED` events.

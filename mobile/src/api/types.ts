@@ -23,6 +23,7 @@ export type RealtimeEventType =
   | "GAME_STARTED"
   | "TURN_STARTED"
   | "WORD_SUBMITTED"
+  | "AI_GENERATION_STARTED"
   | "STORY_SEGMENT_ADDED"
   | "TURN_SKIPPED"
   | "VOTING_STARTED"

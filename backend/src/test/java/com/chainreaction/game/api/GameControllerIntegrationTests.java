@@ -22,6 +22,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
+import com.chainreaction.ai.AiGenerationAttemptStatus;
+import com.chainreaction.ai.AiGenerationAttemptRepository;
 import com.chainreaction.auth.api.AuthResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,6 +40,9 @@ class GameControllerIntegrationTests {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private AiGenerationAttemptRepository aiGenerationAttemptRepository;
 
     @Test
     void hostCanStartGameAndPlayersCanFetchState() throws Exception {
@@ -203,6 +208,16 @@ class GameControllerIntegrationTests {
                 .andExpect(jsonPath("$.storySegments[1].authorUserId", equalTo(host.userId().toString())))
                 .andExpect(jsonPath("$.fullStory", equalTo("The story begins, waiting for the first word.\n\nThe word \"dragon\" pushes the story into a stranger turn.")))
                 .andExpect(jsonPath("$.storySegments[1].content", equalTo("The word \"dragon\" pushes the story into a stranger turn.")));
+
+        var attempts = aiGenerationAttemptRepository.findAllByGameIdOrderByCreatedAtAsc(UUID.fromString(started.gameId()));
+        org.assertj.core.api.Assertions.assertThat(attempts).hasSize(1);
+        org.assertj.core.api.Assertions.assertThat(attempts.get(0).getTurnId()).isEqualTo(UUID.fromString(started.turnId()));
+        org.assertj.core.api.Assertions.assertThat(attempts.get(0).getNormalizedWord()).isEqualTo("dragon");
+        org.assertj.core.api.Assertions.assertThat(attempts.get(0).getAttemptNumber()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(attempts.get(0).getStatus()).isEqualTo(AiGenerationAttemptStatus.SUCCEEDED);
+        org.assertj.core.api.Assertions.assertThat(attempts.get(0).getModel()).isEqualTo("mock-story-v1");
+        org.assertj.core.api.Assertions.assertThat(attempts.get(0).getPromptTokens()).isPositive();
+        org.assertj.core.api.Assertions.assertThat(attempts.get(0).getCompletionTokens()).isPositive();
     }
 
     @Test
@@ -266,6 +281,21 @@ class GameControllerIntegrationTests {
                         .content(json(Map.of("word", "two words"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode", equalTo("VALIDATION_FAILED")));
+
+        mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/turns/" + started.turnId() + "/submit-word")
+                        .header("Authorization", "Bearer " + host.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("word", "murder"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode", equalTo("VALIDATION_FAILED")));
+
+        mockMvc.perform(get("/api/v1/games/" + started.gameId())
+                        .header("Authorization", "Bearer " + host.accessToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentTurn.turnId", equalTo(started.turnId())))
+                .andExpect(jsonPath("$.currentTurn.status", equalTo("ACTIVE")))
+                .andExpect(jsonPath("$.turns.length()", equalTo(1)))
+                .andExpect(jsonPath("$.storySegments.length()", equalTo(1)));
     }
 
     @Test

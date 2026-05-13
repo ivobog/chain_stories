@@ -64,7 +64,11 @@ Games:
 - `POST /api/v1/games/{gameId}/turns/{turnId}/skip-expired`
 
 Only the room host can start a game. A game requires at least two active players, moves the room to `ACTIVE`, creates the first turn from join order, and persists an opening story segment placeholder.
-The submit-word endpoint currently uses deterministic mock story text while the AI story loop is still pending. It accepts exactly one word, enforces current-player ownership, advances to the next active player by join order, and moves the game to `VOTING` after the configured turn limit.
+The submit-word endpoint currently uses the Phase 5 AI provider selected by `AI_PROVIDER`; `mock` is the default provider and uses `AI_MOCK_MODEL` for its reported model name. Set `AI_PROVIDER=openai` with `OPENAI_API_KEY` to call the OpenAI Responses API through the same provider-neutral pipeline. OpenAI calls use configurable `AI_OPENAI_CONNECT_TIMEOUT` and `AI_OPENAI_READ_TIMEOUT` limits. It accepts exactly one moderated word, enforces current-player ownership, retries invalid provider output up to `AI_GENERATION_MAX_ATTEMPTS`, validates structured AI output, runs output moderation, stores the accepted sentence, advances to the next active player by join order, and moves the game to `VOTING` after the configured turn limit.
+Provider integrations should return structured JSON with `sentence`, `usedWord`, `tone`, `intensity`, `safetyLevel`, `summary`, `storyDirection`, and `tags`; the backend maps this into the internal generation result before validation and moderation.
+Each provider attempt is recorded in `ai_generation_attempts` with game/turn ids, normalized word, attempt number, provider/model, token counts, latency, status, and failure reason for backend observability.
+AI generation attempts also emit Micrometer metrics: `ai_generation_attempts_total`, `ai_generation_attempt_duration`, and `ai_generation_failures_total` for exhausted retries.
+If generation exhausts its retry budget, clients receive `errorCode: AI_GENERATION_FAILED` with a generic retry message; raw provider or validation details stay in backend telemetry.
 The skip-expired endpoint lets an active room participant advance an expired current turn. It rejects turns that are not expired yet, marks expired turns as `SKIPPED`, and uses the same advancement and voting transition rules as submitted turns.
 Game responses include lifecycle timestamps (`startedAt`, `completedAt`), `currentTurn`, ordered `turns`, ordered `storySegments`, and `fullStory`, a backend-reconstructed display string joined from the persisted segment sequence. Turn responses include `submittedAt` after a word submission or expired-turn skip.
 
@@ -77,7 +81,7 @@ WebSocket:
 WebSocket clients authenticate by sending `Authorization: Bearer <accessToken>` as a STOMP `CONNECT` native header. The authenticated principal is retained on the WebSocket session for later subscription authorization. Room and game REST mutations publish events to the room topic after successful transaction commit using a shared event envelope with `type`, `roomId`, optional `gameId`, `payload`, and `occurredAt`.
 Subscriptions to `/topic/rooms/{roomId}` require the connected user to be an active participant in that room.
 Subscriptions to `/user/queue/events` require an authenticated WebSocket user and are reserved for user-specific events.
-Currently published event types include `PLAYER_JOINED`, `PLAYER_LEFT`, `PLAYER_KICKED`, `ROOM_CLOSED`, `GAME_STARTED`, `TURN_STARTED`, `WORD_SUBMITTED`, `STORY_SEGMENT_ADDED`, `TURN_SKIPPED`, and `VOTING_STARTED`. Kicked participants also receive a private `PLAYER_KICKED` event on `/user/queue/events`.
+Currently published event types include `PLAYER_JOINED`, `PLAYER_LEFT`, `PLAYER_KICKED`, `ROOM_CLOSED`, `GAME_STARTED`, `TURN_STARTED`, `WORD_SUBMITTED`, `AI_GENERATION_STARTED`, `STORY_SEGMENT_ADDED`, `TURN_SKIPPED`, and `VOTING_STARTED`. Kicked participants also receive a private `PLAYER_KICKED` event on `/user/queue/events`.
 Clients that reconnect should resubscribe to the room topic and call `GET /api/v1/games/{gameId}` to recover the full current game, turn, and story state.
 
 Mobile client notes:

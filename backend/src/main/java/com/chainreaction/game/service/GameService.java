@@ -8,6 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.chainreaction.ai.StoryGenerationResult;
+import com.chainreaction.ai.StoryGenerationService;
 import com.chainreaction.common.error.ApiException;
 import com.chainreaction.common.error.ErrorCode;
 import com.chainreaction.game.api.GameResponse;
@@ -46,6 +48,7 @@ public class GameService {
     private final RoomRepository roomRepository;
     private final RoomParticipantRepository roomParticipantRepository;
     private final RealtimeEventPublisher realtimeEventPublisher;
+    private final StoryGenerationService storyGenerationService;
 
     public GameService(
             GameRepository gameRepository,
@@ -54,7 +57,8 @@ public class GameService {
             StorySegmentRepository storySegmentRepository,
             RoomRepository roomRepository,
             RoomParticipantRepository roomParticipantRepository,
-            RealtimeEventPublisher realtimeEventPublisher) {
+            RealtimeEventPublisher realtimeEventPublisher,
+            StoryGenerationService storyGenerationService) {
         this.gameRepository = gameRepository;
         this.gameTurnRepository = gameTurnRepository;
         this.storyRepository = storyRepository;
@@ -62,6 +66,7 @@ public class GameService {
         this.roomRepository = roomRepository;
         this.roomParticipantRepository = roomParticipantRepository;
         this.realtimeEventPublisher = realtimeEventPublisher;
+        this.storyGenerationService = storyGenerationService;
     }
 
     @Transactional
@@ -119,18 +124,26 @@ public class GameService {
                     "Only the current player can submit a word.");
         }
 
-        String word = normalizeWord(request.word());
-        turn.submit();
         Story story = storyRepository.findByGameId(gameId)
                 .orElseThrow(() -> new ApiException(ErrorCode.GAME_NOT_FOUND, HttpStatus.NOT_FOUND,
                         "Story does not exist."));
+        publishGameEvent(game, RealtimeEventType.AI_GENERATION_STARTED,
+                response(game, turn, activeParticipants(game.getRoom().getId())));
+        StoryGenerationResult generation = storyGenerationService.generate(
+                game.getId(),
+                turn.getId(),
+                game.getRoom(),
+                request.word(),
+                fullStory(story.getId()));
+
+        turn.submit();
         int sequenceNumber = (int) storySegmentRepository.countByStoryId(story.getId()) + 1;
         storySegmentRepository.save(new StorySegment(
                 story,
                 turn,
                 turn.getPlayer(),
                 sequenceNumber,
-                mockSegment(word)));
+                generation.sentence()));
 
         GameResponse result = advanceAfterTurn(game, turn);
         publishGameEvent(game, RealtimeEventType.WORD_SUBMITTED, result);
@@ -262,17 +275,12 @@ public class GameService {
                 .toList();
     }
 
-    private String normalizeWord(String word) {
-        String normalized = word.trim().toLowerCase();
-        if (!normalized.matches("^[\\p{L}\\p{N}'-]+$")) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST,
-                    "Submit exactly one word.");
-        }
-        return normalized;
-    }
-
-    private String mockSegment(String word) {
-        return "The word \"" + word + "\" pushes the story into a stranger turn.";
+    private String fullStory(UUID storyId) {
+        return storySegmentRepository.findAllByStoryIdOrderBySequenceNumberAsc(storyId)
+                .stream()
+                .map(StorySegment::getContent)
+                .reduce((first, second) -> first + "\n\n" + second)
+                .orElse("");
     }
 
     private com.chainreaction.user.domain.User nextPlayer(List<RoomParticipant> participants, int turnNumber) {

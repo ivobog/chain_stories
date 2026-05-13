@@ -535,6 +535,43 @@ Exit criteria:
 - The story grows live after each accepted word.
 - Backend remains authoritative over turn state.
 
+Implemented first slice:
+
+- Story generation service orchestrates word moderation, prompt building, provider execution, output validation, and telemetry logging.
+- Provider-neutral `StoryAiProvider` abstraction.
+- `AI_PROVIDER` selects the active provider by environment; `mock` is the current default.
+- Deterministic mock provider returning the structured Phase 5 output shape with configurable `AI_MOCK_MODEL`.
+- OpenAI provider implementation behind `AI_PROVIDER=openai`, configured by `OPENAI_API_KEY`, `AI_OPENAI_MODEL`, and `AI_OPENAI_BASE_URL`.
+- OpenAI provider calls use configurable connect and read timeouts through `AI_OPENAI_CONNECT_TIMEOUT` and `AI_OPENAI_READ_TIMEOUT`.
+- OpenAI requests use the Responses API with a strict structured JSON schema matching the internal story generation output fields.
+- Structured AI JSON parser maps provider JSON payloads into the internal story generation output schema.
+- Prompt builder includes writing style, language, safety mode, required word, and current story context.
+- Input moderation normalizes one-word submissions and blocks an initial unsafe word list.
+- Output validator enforces required fields, submitted-word usage, sentence length, intensity range, and family-mode safety.
+- Output moderation v1 rejects blocked generated terms and stricter family-mode unsafe generated content before persistence.
+- AI generation retries provider errors or invalid generated output up to `AI_GENERATION_MAX_ATTEMPTS` attempts.
+- AI generation attempts are persisted with game id, turn id, normalized word, attempt number, status, provider, model, token counts, latency, and failure reason.
+- Attempt persistence uses an independent transaction so provider failures remain visible even when the turn submission rolls back.
+- AI generation attempts and exhausted retry failures are exported through Micrometer metrics with provider/status tags.
+- Exhausted AI generation failures return a sanitized `AI_GENERATION_FAILED` API error while raw provider/validation reasons stay in telemetry.
+- Output validation rejects responses that rewrite the full story instead of adding a segment.
+- Submit-word flow stores the validated generated sentence and leaves turn/story state untouched when moderation or generation validation fails.
+- `AI_GENERATION_STARTED` is now part of the realtime event contract and mobile event type union.
+
+Testing implemented:
+
+- Word moderation unit coverage for normalization, multi-word rejection, and unsafe-word rejection.
+- Output moderation unit coverage for safe output, blocked generated terms, and family-mode unsafe generated content.
+- Structured JSON parser unit coverage for provider output mapping, ignored unknown fields, token/model metadata, and invalid JSON rejection.
+- Mock provider unit coverage for provider name, configured model, generated sentence, and token estimates.
+- OpenAI provider unit coverage for request shape, bearer authentication, structured output mapping, token metadata, missing-key rejection, and malformed response handling.
+- Provider selection coverage confirms default `mock` wiring and `AI_PROVIDER=openai` Spring wiring.
+- Story generation output validator unit coverage for accepted output, ignored-word rejection, family-mode safety rejection, and full-story rewrite rejection.
+- Story generation service unit coverage for retry success, sanitized retry exhaustion, non-retryable input moderation failure, and retryable output moderation failure.
+- Story generation service unit coverage confirms AI attempt counters and exhausted retry failure counters are emitted without retrying input moderation failures.
+- Game integration coverage confirms accepted submissions persist AI attempt telemetry.
+- Game integration coverage confirms rejected unsafe input does not submit the current turn or add a story segment.
+
 ### Phase 6: Word Registry and Anti-Repetition v1
 
 Goal: reduce repeated jokes and repeated story twists.

@@ -30,6 +30,18 @@ app:
       password-reset-token-ttl-minutes: ${PASSWORD_RESET_TOKEN_TTL_MINUTES:30}
   subscriptions:
     mock-purchases-enabled: ${SUBSCRIPTIONS_MOCK_PURCHASES_ENABLED:false}
+  ai:
+    provider: ${AI_PROVIDER:mock}
+    generation:
+      max-attempts: ${AI_GENERATION_MAX_ATTEMPTS:3}
+    mock:
+      model: ${AI_MOCK_MODEL:mock-story-v1}
+    openai:
+      api-key: ${OPENAI_API_KEY:${AI_API_KEY:}}
+      model: ${AI_OPENAI_MODEL:gpt-4.1-mini}
+      base-url: ${AI_OPENAI_BASE_URL:https://api.openai.com}
+      connect-timeout: ${AI_OPENAI_CONNECT_TIMEOUT:3s}
+      read-timeout: ${AI_OPENAI_READ_TIMEOUT:15s}
 
 management:
   endpoints:
