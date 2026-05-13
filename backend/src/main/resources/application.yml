@@ -19,6 +19,16 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+app:
+  security:
+    jwt:
+      issuer: ${JWT_ISSUER:chain-stories-local}
+      secret: ${JWT_SECRET:replace-with-local-development-secret}
+      allow-insecure-dev-secret: ${JWT_ALLOW_INSECURE_DEV_SECRET:true}
+      access-token-ttl-minutes: ${JWT_ACCESS_TOKEN_TTL_MINUTES:15}
+      refresh-token-ttl-days: ${JWT_REFRESH_TOKEN_TTL_DAYS:30}
+      password-reset-token-ttl-minutes: ${PASSWORD_RESET_TOKEN_TTL_MINUTES:30}
+
 management:
   endpoints:
     web:

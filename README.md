@@ -44,6 +44,15 @@ Useful endpoints:
 
 - `GET http://localhost:8080/actuator/health`
 - `GET http://localhost:8080/api/v1/status`
+- `POST http://localhost:8080/api/v1/auth/register`
+- `POST http://localhost:8080/api/v1/auth/login`
+- `POST http://localhost:8080/api/v1/auth/refresh`
+- `POST http://localhost:8080/api/v1/auth/logout`
+- `POST http://localhost:8080/api/v1/auth/password-reset/request`
+- `POST http://localhost:8080/api/v1/auth/password-reset/confirm`
+- `GET http://localhost:8080/api/v1/me`
+- `PATCH http://localhost:8080/api/v1/me/profile`
+- `DELETE http://localhost:8080/api/v1/me`
 
 ## Mobile
 
@@ -58,6 +67,10 @@ The mobile app is currently a Phase 0 placeholder screen. Real authentication an
 ## Environment
 
 Copy `.env.example` to `.env` for local defaults when needed. Never commit real secrets.
+
+For non-local environments, set `JWT_ALLOW_INSECURE_DEV_SECRET=false` and provide a unique `JWT_SECRET` with at least 32 bytes.
+
+Account deletion is a soft delete with privacy cleanup: active refresh tokens are revoked and stored user/profile identifiers are anonymized so the original email can be reused.
 
 ## Current Phase
 
