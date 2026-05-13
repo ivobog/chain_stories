@@ -111,6 +111,10 @@ public class Room {
         this.closedAt = Instant.now();
     }
 
+    public void startGame() {
+        this.status = RoomStatus.ACTIVE;
+    }
+
     public void transferHost(User host) {
         this.host = host;
     }

@@ -56,6 +56,18 @@ Only hosts can update lobby settings. Updates are allowed while the room is in `
 `GET /api/v1/rooms` lists the current user's active joined rooms for resume flows. Room code previews expose host display name, settings, active player count, and join availability without exposing participant emails.
 Close, leave, and kick actions reject rooms that are already closed, expired, or banned. Kicks can target only active non-host participants.
 
+Games:
+
+- `POST /api/v1/rooms/{roomId}/games/start`
+- `GET /api/v1/games/{gameId}`
+- `POST /api/v1/games/{gameId}/turns/{turnId}/submit-word`
+- `POST /api/v1/games/{gameId}/turns/{turnId}/skip-expired`
+
+Only the room host can start a game. A game requires at least two active players, moves the room to `ACTIVE`, creates the first turn from join order, and persists an opening story segment placeholder.
+The submit-word endpoint currently uses deterministic mock story text while the AI story loop is still pending. It accepts exactly one word, enforces current-player ownership, advances to the next active player by join order, and moves the game to `VOTING` after the configured turn limit.
+The skip-expired endpoint lets an active room participant advance an expired current turn. It rejects turns that are not expired yet, marks expired turns as `SKIPPED`, and uses the same advancement and voting transition rules as submitted turns.
+Game responses include lifecycle timestamps (`startedAt`, `completedAt`), `currentTurn`, ordered `turns`, ordered `storySegments`, and `fullStory`, a backend-reconstructed display string joined from the persisted segment sequence. Turn responses include `submittedAt` after a word submission or expired-turn skip.
+
 Validation:
 
 - Passwords must be 8 to 128 characters and include uppercase, lowercase, number, and symbol characters.

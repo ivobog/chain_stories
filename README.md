@@ -66,6 +66,10 @@ Useful endpoints:
 - `PATCH http://localhost:8080/api/v1/rooms/{roomId}/settings`
 - `POST http://localhost:8080/api/v1/rooms/{roomId}/leave`
 - `POST http://localhost:8080/api/v1/rooms/{roomId}/participants/{userId}/kick`
+- `POST http://localhost:8080/api/v1/rooms/{roomId}/games/start`
+- `GET http://localhost:8080/api/v1/games/{gameId}`
+- `POST http://localhost:8080/api/v1/games/{gameId}/turns/{turnId}/submit-word`
+- `POST http://localhost:8080/api/v1/games/{gameId}/turns/{turnId}/skip-expired`
 
 ## Mobile
 
@@ -89,4 +93,4 @@ Mock subscription purchase APIs are disabled by default. Set `SUBSCRIPTIONS_MOCK
 
 ## Current Phase
 
-Phase 2 in progress: room and entitlement foundation. Users can create, join, leave, close, and manage private rooms with plan-based player limits.
+Phase 3 in progress: game engine and story state. Rooms and entitlements are in place, hosts can start persisted games, current players can submit one-word turns, expired turns can be skipped authoritatively, and game state includes lifecycle timestamps, turn completion timestamps, turn history, and reconstructed full story text.

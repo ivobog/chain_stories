@@ -351,6 +351,27 @@ Primary APIs:
 
 - `POST /api/v1/rooms/{roomId}/games/start`
 - `GET /api/v1/games/{gameId}`
+- `POST /api/v1/games/{gameId}/turns/{turnId}/submit-word`
+- `POST /api/v1/games/{gameId}/turns/{turnId}/skip-expired`
+
+Implemented slices:
+
+- Durable `games`, `game_turns`, `stories`, and `story_segments` tables.
+- Host-only game start from room lobby.
+- Minimum two active players required.
+- First turn assigned from room join order.
+- Opening story segment placeholder persisted.
+- Game state retrieval for active room participants.
+- New joins rejected after a room becomes active.
+- Deterministic mock submit-word endpoint.
+- One-word validation and current-player enforcement.
+- Turn advancement by room join order.
+- Game moves to `VOTING` after the configured turn limit.
+- Expired current turns can be marked `SKIPPED` and advanced by any active room participant.
+- Game responses include backend-reconstructed `fullStory` text from ordered story segments.
+- Game responses include ordered turn history with submitted, skipped, and active turn statuses.
+- Game responses expose lifecycle timestamps for game start and voting transition completion.
+- Turn responses expose `submittedAt` when a turn is submitted or skipped.
 
 Testing:
 
@@ -359,6 +380,12 @@ Testing:
 - No fixed story theme is required.
 - First turn is assigned correctly.
 - Full story can be reconstructed from ordered segments.
+- Current-player and one-word submit validation are enforced.
+- Non-expired turns cannot be skipped; expired turns advance turn order.
+- `fullStory` is reconstructed from persisted segments after start, submit, and voting transition.
+- Ordered `turns` reflect active, submitted, and skipped states across reconnects.
+- Active games expose `startedAt`; games moved to `VOTING` expose `completedAt`.
+- Active turns have no `submittedAt`; submitted and skipped turns do.
 - Game moves to voting after configured turn limit.
 
 Exit criteria:

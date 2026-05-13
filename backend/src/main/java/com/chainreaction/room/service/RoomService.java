@@ -118,7 +118,7 @@ public class RoomService {
         Room room = roomRepository.findByRoomCodeIgnoreCase(roomCode)
                 .orElseThrow(() -> new ApiException(ErrorCode.ROOM_NOT_FOUND, HttpStatus.NOT_FOUND,
                         "Room does not exist."));
-        assertJoinable(room);
+        assertLobbyJoinable(room);
 
         return roomParticipantRepository.findByRoomIdAndUserId(room.getId(), userId)
                 .map(existing -> {
@@ -229,6 +229,12 @@ public class RoomService {
 
     private void assertJoinable(Room room) {
         if (!isJoinable(room)) {
+            throw new ApiException(ErrorCode.ROOM_CLOSED, HttpStatus.CONFLICT, "Room is no longer joinable.");
+        }
+    }
+
+    private void assertLobbyJoinable(Room room) {
+        if (!isJoinable(room) || room.getStatus() != RoomStatus.LOBBY) {
             throw new ApiException(ErrorCode.ROOM_CLOSED, HttpStatus.CONFLICT, "Room is no longer joinable.");
         }
     }
