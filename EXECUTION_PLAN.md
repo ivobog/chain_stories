@@ -433,10 +433,43 @@ Testing:
 - Starting a game emits `GAME_STARTED` and `TURN_STARTED`.
 - Reconnected clients can retrieve full current state.
 
+Implemented first slice:
+
+- STOMP WebSocket endpoint at `/ws/game`.
+- Simple broker topics under `/topic`.
+- JWT authentication for STOMP `CONNECT` frames through the existing access token service.
+- Authenticated STOMP principals are retained on the WebSocket session for later subscription authorization.
+- Room topic subscriptions require active room participation.
+- User queue subscriptions at `/user/queue/events` require an authenticated WebSocket user.
+- Room topic envelope with `type`, `roomId`, optional `gameId`, `payload`, and `occurredAt`.
+- Event publisher for `/topic/rooms/{roomId}`.
+- Event publisher for `/user/queue/events`.
+- Realtime publisher defers transactional sends until after successful commit.
+- Room REST mutations publish `PLAYER_JOINED`, `PLAYER_LEFT`, `PLAYER_KICKED`, and `ROOM_CLOSED`.
+- Kicked users receive a private `PLAYER_KICKED` event on `/user/queue/events`.
+- Game REST mutations publish `GAME_STARTED`, `TURN_STARTED`, `WORD_SUBMITTED`, `STORY_SEGMENT_ADDED`, `TURN_SKIPPED`, and `VOTING_STARTED`.
+- Reconnected clients recover complete game, turn, and story state through `GET /api/v1/games/{gameId}`.
+- Mobile now includes typed REST and STOMP WebSocket client modules for auth, room resume, room preview, room lifecycle, game, room-topic, and user-queue flows.
+
+Testing implemented:
+
+- Realtime publisher routes room and game events to the expected room topic.
+- STOMP `CONNECT` rejects missing bearer tokens.
+- STOMP `CONNECT` authenticates active users with JWT access tokens.
+- Room topic subscription accepts active participants and rejects outsiders.
+- User queue subscription accepts authenticated users and rejects anonymous subscriptions.
+- Events queued inside transactions publish only after commit.
+- Non-connect STOMP frames pass through the interceptor.
+- WebSocket integration tests verify a subscribed host receives `PLAYER_JOINED`.
+- WebSocket integration tests verify two subscribed participants both receive `GAME_STARTED` and `TURN_STARTED`.
+- WebSocket integration tests verify kicked participants receive private user-queue events.
+- Game integration tests verify a participant can miss turn events and retrieve the full current story state after reconnect.
+- Mobile TypeScript verifies the REST and realtime client modules.
+
 Exit criteria:
 
-- Two connected clients receive room and game events.
-- Reconnect does not lose story state.
+- Two connected clients receive room and game events. (Implemented for join and game-start events.)
+- Reconnect does not lose story state. (Implemented through `GET /api/v1/games/{gameId}`.)
 
 ### Phase 5: AI Story Loop
 

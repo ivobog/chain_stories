@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.chainreaction.common.error.ApiException;
 import com.chainreaction.common.error.ErrorCode;
+import com.chainreaction.realtime.api.RealtimeEventType;
+import com.chainreaction.realtime.service.RealtimeEventPublisher;
 import com.chainreaction.room.api.CreateRoomRequest;
 import com.chainreaction.room.api.RoomPreviewResponse;
 import com.chainreaction.room.api.RoomResponse;
@@ -40,6 +42,7 @@ public class RoomService {
     private final UserProfileRepository userProfileRepository;
     private final EntitlementService entitlementService;
     private final RoomCodeGenerator roomCodeGenerator;
+    private final RealtimeEventPublisher realtimeEventPublisher;
 
     public RoomService(
             RoomRepository roomRepository,
@@ -47,13 +50,15 @@ public class RoomService {
             UserRepository userRepository,
             UserProfileRepository userProfileRepository,
             EntitlementService entitlementService,
-            RoomCodeGenerator roomCodeGenerator) {
+            RoomCodeGenerator roomCodeGenerator,
+            RealtimeEventPublisher realtimeEventPublisher) {
         this.roomRepository = roomRepository;
         this.roomParticipantRepository = roomParticipantRepository;
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
         this.entitlementService = entitlementService;
         this.roomCodeGenerator = roomCodeGenerator;
+        this.realtimeEventPublisher = realtimeEventPublisher;
     }
 
     @Transactional
@@ -120,7 +125,7 @@ public class RoomService {
                         "Room does not exist."));
         assertLobbyJoinable(room);
 
-        return roomParticipantRepository.findByRoomIdAndUserId(room.getId(), userId)
+        RoomResponse result = roomParticipantRepository.findByRoomIdAndUserId(room.getId(), userId)
                 .map(existing -> {
                     if (existing.getStatus() == RoomParticipantStatus.KICKED) {
                         throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN,
@@ -137,6 +142,8 @@ public class RoomService {
                     roomParticipantRepository.save(new RoomParticipant(room, user, RoomParticipantRole.PLAYER));
                     return response(room);
                 });
+        realtimeEventPublisher.publishRoomEvent(room.getId(), RealtimeEventType.PLAYER_JOINED, result);
+        return result;
     }
 
     @Transactional(readOnly = true)
@@ -152,7 +159,9 @@ public class RoomService {
         requireHost(room, userId);
         assertJoinable(room);
         room.close();
-        return response(room);
+        RoomResponse result = response(room);
+        realtimeEventPublisher.publishRoomEvent(roomId, RealtimeEventType.ROOM_CLOSED, result);
+        return result;
     }
 
     @Transactional
@@ -190,7 +199,10 @@ public class RoomService {
                     "Participant is not active in the room.");
         }
         participant.kick();
-        return response(room);
+        RoomResponse result = response(room);
+        realtimeEventPublisher.publishRoomEvent(roomId, RealtimeEventType.PLAYER_KICKED, result);
+        realtimeEventPublisher.publishUserEvent(participant.getUser().getEmail(), RealtimeEventType.PLAYER_KICKED, result);
+        return result;
     }
 
     @Transactional
@@ -209,7 +221,12 @@ public class RoomService {
             transferOrCloseRoom(room, participant);
         }
         participant.leave();
-        return response(room);
+        RoomResponse result = response(room);
+        realtimeEventPublisher.publishRoomEvent(roomId, RealtimeEventType.PLAYER_LEFT, result);
+        if (room.getStatus() == RoomStatus.CLOSED) {
+            realtimeEventPublisher.publishRoomEvent(roomId, RealtimeEventType.ROOM_CLOSED, result);
+        }
+        return result;
     }
 
     private void transferOrCloseRoom(Room room, RoomParticipant departingHost) {

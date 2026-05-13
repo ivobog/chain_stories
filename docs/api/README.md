@@ -68,6 +68,23 @@ The submit-word endpoint currently uses deterministic mock story text while the 
 The skip-expired endpoint lets an active room participant advance an expired current turn. It rejects turns that are not expired yet, marks expired turns as `SKIPPED`, and uses the same advancement and voting transition rules as submitted turns.
 Game responses include lifecycle timestamps (`startedAt`, `completedAt`), `currentTurn`, ordered `turns`, ordered `storySegments`, and `fullStory`, a backend-reconstructed display string joined from the persisted segment sequence. Turn responses include `submittedAt` after a word submission or expired-turn skip.
 
+WebSocket:
+
+- STOMP endpoint: `/ws/game`
+- Room topic: `/topic/rooms/{roomId}`
+- User queue: `/user/queue/events`
+
+WebSocket clients authenticate by sending `Authorization: Bearer <accessToken>` as a STOMP `CONNECT` native header. The authenticated principal is retained on the WebSocket session for later subscription authorization. Room and game REST mutations publish events to the room topic after successful transaction commit using a shared event envelope with `type`, `roomId`, optional `gameId`, `payload`, and `occurredAt`.
+Subscriptions to `/topic/rooms/{roomId}` require the connected user to be an active participant in that room.
+Subscriptions to `/user/queue/events` require an authenticated WebSocket user and are reserved for user-specific events.
+Currently published event types include `PLAYER_JOINED`, `PLAYER_LEFT`, `PLAYER_KICKED`, `ROOM_CLOSED`, `GAME_STARTED`, `TURN_STARTED`, `WORD_SUBMITTED`, `STORY_SEGMENT_ADDED`, `TURN_SKIPPED`, and `VOTING_STARTED`. Kicked participants also receive a private `PLAYER_KICKED` event on `/user/queue/events`.
+Clients that reconnect should resubscribe to the room topic and call `GET /api/v1/games/{gameId}` to recover the full current game, turn, and story state.
+
+Mobile client notes:
+
+- `mobile/src/api/client.ts` wraps auth, room listing, room preview, room create/join/close/settings/leave/kick, game start/recovery, and word submission.
+- `mobile/src/api/realtime.ts` wraps STOMP connection setup, room-topic subscriptions, and user-queue subscriptions.
+
 Validation:
 
 - Passwords must be 8 to 128 characters and include uppercase, lowercase, number, and symbol characters.

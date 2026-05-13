@@ -70,6 +70,7 @@ Useful endpoints:
 - `GET http://localhost:8080/api/v1/games/{gameId}`
 - `POST http://localhost:8080/api/v1/games/{gameId}/turns/{turnId}/submit-word`
 - `POST http://localhost:8080/api/v1/games/{gameId}/turns/{turnId}/skip-expired`
+- `WS/STOMP http://localhost:8080/ws/game`
 
 ## Mobile
 
@@ -79,7 +80,7 @@ npm install
 npm run start
 ```
 
-The mobile app is currently a Phase 0 placeholder screen. Real authentication and room/game screens start in later phases.
+The mobile app still shows a placeholder screen, but `mobile/src/api` now has typed REST and STOMP WebSocket clients ready for auth, room resume, room lifecycle, game, and realtime Phase 8 screens.
 
 ## Environment
 
@@ -93,4 +94,4 @@ Mock subscription purchase APIs are disabled by default. Set `SUBSCRIPTIONS_MOCK
 
 ## Current Phase
 
-Phase 3 in progress: game engine and story state. Rooms and entitlements are in place, hosts can start persisted games, current players can submit one-word turns, expired turns can be skipped authoritatively, and game state includes lifecycle timestamps, turn completion timestamps, turn history, and reconstructed full story text.
+Phase 4 in progress: WebSocket multiplayer. The backend exposes `/ws/game`, authenticates STOMP connections with JWT bearer tokens, authorizes room-topic and user-queue subscriptions, publishes room/game events to `/topic/rooms/{roomId}`, sends private kick events on `/user/queue/events`, has integration coverage for live room-topic and private user-queue delivery, supports reconnect state recovery through room resume and `GET /api/v1/games/{gameId}`, and the mobile app has reusable REST/WebSocket client modules.

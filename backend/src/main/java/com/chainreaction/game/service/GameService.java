@@ -24,6 +24,8 @@ import com.chainreaction.game.repository.GameRepository;
 import com.chainreaction.game.repository.GameTurnRepository;
 import com.chainreaction.game.repository.StoryRepository;
 import com.chainreaction.game.repository.StorySegmentRepository;
+import com.chainreaction.realtime.api.RealtimeEventType;
+import com.chainreaction.realtime.service.RealtimeEventPublisher;
 import com.chainreaction.room.domain.Room;
 import com.chainreaction.room.domain.RoomParticipant;
 import com.chainreaction.room.domain.RoomParticipantStatus;
@@ -43,6 +45,7 @@ public class GameService {
     private final StorySegmentRepository storySegmentRepository;
     private final RoomRepository roomRepository;
     private final RoomParticipantRepository roomParticipantRepository;
+    private final RealtimeEventPublisher realtimeEventPublisher;
 
     public GameService(
             GameRepository gameRepository,
@@ -50,13 +53,15 @@ public class GameService {
             StoryRepository storyRepository,
             StorySegmentRepository storySegmentRepository,
             RoomRepository roomRepository,
-            RoomParticipantRepository roomParticipantRepository) {
+            RoomParticipantRepository roomParticipantRepository,
+            RealtimeEventPublisher realtimeEventPublisher) {
         this.gameRepository = gameRepository;
         this.gameTurnRepository = gameTurnRepository;
         this.storyRepository = storyRepository;
         this.storySegmentRepository = storySegmentRepository;
         this.roomRepository = roomRepository;
         this.roomParticipantRepository = roomParticipantRepository;
+        this.realtimeEventPublisher = realtimeEventPublisher;
     }
 
     @Transactional
@@ -88,7 +93,10 @@ public class GameService {
         Story story = storyRepository.save(new Story(game));
         storySegmentRepository.save(new StorySegment(story, null, null, 1, OPENING_SEGMENT));
 
-        return response(game, firstTurn, participants);
+        GameResponse result = response(game, firstTurn, participants);
+        publishGameEvent(game, RealtimeEventType.GAME_STARTED, result);
+        publishGameEvent(game, RealtimeEventType.TURN_STARTED, result);
+        return result;
     }
 
     @Transactional(readOnly = true)
@@ -124,7 +132,11 @@ public class GameService {
                 sequenceNumber,
                 mockSegment(word)));
 
-        return advanceAfterTurn(game, turn);
+        GameResponse result = advanceAfterTurn(game, turn);
+        publishGameEvent(game, RealtimeEventType.WORD_SUBMITTED, result);
+        publishGameEvent(game, RealtimeEventType.STORY_SEGMENT_ADDED, result);
+        publishAfterTurnAdvance(game, result);
+        return result;
     }
 
     @Transactional
@@ -138,7 +150,10 @@ public class GameService {
         }
 
         turn.skip();
-        return advanceAfterTurn(game, turn);
+        GameResponse result = advanceAfterTurn(game, turn);
+        publishGameEvent(game, RealtimeEventType.TURN_SKIPPED, result);
+        publishAfterTurnAdvance(game, result);
+        return result;
     }
 
     private GameResponse advanceAfterTurn(Game game, GameTurn turn) {
@@ -157,6 +172,18 @@ public class GameService {
         }
 
         return response(game, currentTurn, participants);
+    }
+
+    private void publishAfterTurnAdvance(Game game, GameResponse result) {
+        if (game.getStatus() == GameStatus.VOTING) {
+            publishGameEvent(game, RealtimeEventType.VOTING_STARTED, result);
+        } else {
+            publishGameEvent(game, RealtimeEventType.TURN_STARTED, result);
+        }
+    }
+
+    private void publishGameEvent(Game game, RealtimeEventType type, GameResponse payload) {
+        realtimeEventPublisher.publishGameEvent(game.getRoom().getId(), game.getId(), type, payload);
     }
 
     private Game requireActiveGame(UUID gameId) {

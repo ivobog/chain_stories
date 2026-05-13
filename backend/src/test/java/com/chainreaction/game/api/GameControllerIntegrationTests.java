@@ -206,6 +206,47 @@ class GameControllerIntegrationTests {
     }
 
     @Test
+    void reconnectedParticipantCanFetchFullCurrentStoryStateAfterMissedTurnEvents() throws Exception {
+        AuthResponse host = register("host-reconnect-" + UUID.randomUUID() + "@example.com", "Host");
+        AuthResponse player = register("player-reconnect-" + UUID.randomUUID() + "@example.com", "Player");
+
+        StartedGame started = startTwoPlayerGame(host, player, 10);
+
+        MvcResult firstSubmit = mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/turns/" + started.turnId() + "/submit-word")
+                        .header("Authorization", "Bearer " + host.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("word", "Dragon"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        String secondTurnId = (String) responseBody(firstSubmit, "currentTurn").get("turnId");
+
+        MvcResult secondSubmit = mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/turns/" + secondTurnId + "/submit-word")
+                        .header("Authorization", "Bearer " + player.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("word", "Moon"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        String thirdTurnId = (String) responseBody(secondSubmit, "currentTurn").get("turnId");
+
+        mockMvc.perform(get("/api/v1/games/" + started.gameId())
+                        .header("Authorization", "Bearer " + player.accessToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.gameId", equalTo(started.gameId())))
+                .andExpect(jsonPath("$.status", equalTo("ACTIVE")))
+                .andExpect(jsonPath("$.currentTurnNumber", equalTo(3)))
+                .andExpect(jsonPath("$.currentTurn.turnId", equalTo(thirdTurnId)))
+                .andExpect(jsonPath("$.currentTurn.playerUserId", equalTo(host.userId().toString())))
+                .andExpect(jsonPath("$.turns.length()", equalTo(3)))
+                .andExpect(jsonPath("$.turns[0].status", equalTo("SUBMITTED")))
+                .andExpect(jsonPath("$.turns[1].status", equalTo("SUBMITTED")))
+                .andExpect(jsonPath("$.turns[2].status", equalTo("ACTIVE")))
+                .andExpect(jsonPath("$.storySegments.length()", equalTo(3)))
+                .andExpect(jsonPath("$.storySegments[1].content", equalTo("The word \"dragon\" pushes the story into a stranger turn.")))
+                .andExpect(jsonPath("$.storySegments[2].content", equalTo("The word \"moon\" pushes the story into a stranger turn.")))
+                .andExpect(jsonPath("$.fullStory", equalTo("The story begins, waiting for the first word.\n\nThe word \"dragon\" pushes the story into a stranger turn.\n\nThe word \"moon\" pushes the story into a stranger turn.")));
+    }
+
+    @Test
     void submitWordRejectsNonCurrentPlayerAndMultiWordInput() throws Exception {
         AuthResponse host = register("host-submit-reject-" + UUID.randomUUID() + "@example.com", "Host");
         AuthResponse player = register("player-submit-reject-" + UUID.randomUUID() + "@example.com", "Player");
