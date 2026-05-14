@@ -14,6 +14,12 @@ export type SafetyMode = "FAMILY" | "TEEN";
 export type RoomVisibility = "PRIVATE" | "PUBLIC";
 export type GameStatus = "ACTIVE" | "VOTING" | "FINISHED";
 export type GameTurnStatus = "ACTIVE" | "SUBMITTED" | "SKIPPED";
+export type VoteCategory =
+  | "FUNNIEST_WORD"
+  | "BEST_SABOTAGE"
+  | "WEIRDEST_TWIST"
+  | "BEST_AI_SENTENCE"
+  | "MVP_PLAYER";
 
 export type RealtimeEventType =
   | "PLAYER_JOINED"
@@ -27,6 +33,8 @@ export type RealtimeEventType =
   | "STORY_SEGMENT_ADDED"
   | "TURN_SKIPPED"
   | "VOTING_STARTED"
+  | "VOTE_RESULTS_UPDATED"
+  | "GAME_FINISHED"
   | "ERROR_EVENT";
 
 export interface AuthResponse {
@@ -34,6 +42,16 @@ export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
   tokenType: "Bearer";
+}
+
+export interface MeResponse {
+  userId: string;
+  email: string;
+  displayName: string;
+  avatarUrl: string | null;
+  favoriteStyle: string | null;
+  status: string;
+  role: string;
 }
 
 export interface RoomSettingsResponse {
@@ -115,6 +133,40 @@ export interface GameResponse {
   turns: GameTurnResponse[];
   fullStory: string;
   storySegments: StorySegmentResponse[];
+}
+
+export interface RandomWordSuggestionResponse {
+  word: string;
+  normalizedWord: string;
+  safetyLevel: SafetyMode;
+  writingStyle: WritingStyle;
+  language: string;
+}
+
+export interface VoteResponse {
+  voteId: string;
+  gameId: string;
+  voterUserId: string;
+  category: VoteCategory;
+  targetUserId: string | null;
+  targetStorySegmentId: string | null;
+  createdAt: string;
+}
+
+export interface VoteTargetResultResponse {
+  targetUserId: string | null;
+  targetStorySegmentId: string | null;
+  voteCount: number;
+}
+
+export interface VoteCategoryResultResponse {
+  category: VoteCategory;
+  results: VoteTargetResultResponse[];
+}
+
+export interface VoteResultsResponse {
+  gameId: string;
+  categories: VoteCategoryResultResponse[];
 }
 
 export interface RealtimeEvent<TPayload = unknown> {

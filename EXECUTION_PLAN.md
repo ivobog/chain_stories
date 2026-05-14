@@ -784,6 +784,90 @@ Exit criteria:
 
 - Two users can complete a full round from mobile devices or simulators.
 
+Implemented first slice:
+
+- Replaced the placeholder Expo screen with a real mobile app shell.
+- Added login and registration screens against the backend auth API.
+- Added secure persisted session storage with `expo-secure-store`.
+- Added mobile refresh-token rotation on restored sessions, with expired-session cleanup and transient-refresh fallback.
+- Added protected mobile API action retry after access-token expiry by refreshing once with the stored refresh token.
+- Added best-effort mobile logout revocation for refresh tokens before clearing local session state.
+- Added backend URL persistence for local device/simulator testing.
+- Added automatic room loading after sign-in/session restore plus an empty-room home state.
+- Added a home screen with room refresh, create room, join room, and open room actions.
+- Replaced instant default room creation with a mobile create-room settings screen.
+- Added mobile room controls for writing style, safety mode, visibility, language, max players, turn limit, and turn timeout.
+- Added a dedicated join-room screen that previews host, status, capacity, style, safety, and joinability before joining by code.
+- Added a lobby view with participant list, refresh, leave room, sign out, and host start-game action.
+- Added mobile lobby room-code sharing through the native share sheet.
+- Added mobile host lobby controls for closing rooms and kicking joined players before the game starts.
+- Added mobile host lobby settings editing for writing style, safety, visibility, language, max players, turn limit, and turn timeout.
+- Added `GET /api/v1/rooms/{roomId}/game` for mobile active-room game resume.
+- Added mobile active-room game opening from the lobby for reconnect/resume flows.
+- Added foreground resume refresh for Home, Lobby, and Game screens after mobile app backgrounding.
+- Added a playable game screen after host start.
+- Added whole-story timeline rendering for mobile gameplay.
+- Added current-turn ownership display.
+- Added display-name resolution for current-turn and voting target labels when room participants are available.
+- Added active-turn countdown display from the backend turn expiry timestamp.
+- Added one-word submit controls for the current player.
+- Added client-side one-word validation and submit disabling before calling the backend turn endpoint.
+- Added in-game AI generation indicator driven by submit actions and `AI_GENERATION_STARTED` realtime events.
+- Added mobile random word suggestion request and tap-to-use flow.
+- Added skip-expired-turn and game refresh controls.
+- Added mobile voting and final-results panel for `VOTING` and `FINISHED` games.
+- Added mobile final-story sharing through the native share sheet for finished games.
+- Added vote target selection for player-target and story-segment categories.
+- Added vote result refresh and top result summaries per category.
+- Added queued mobile STOMP subscriptions so room/user subscriptions attach after connection.
+- Added mobile live room, game, AI generation, vote result, and game-finished event handling.
+- Added mobile room lifecycle event handling for remote game start, room close, and private kick cleanup.
+- Added private kicked-event handling that clears the active room/game state.
+- Added typed mobile profile APIs for `GET /me` and `PATCH /me/profile`.
+- Added a basic mobile settings/profile screen with display name, avatar URL, and favorite style editing.
+- Extended the typed mobile API client for skip-turn, random word, vote submission, and vote results.
+- Extended realtime/mobile API types for `VOTE_RESULTS_UPDATED` and `GAME_FINISHED`.
+- Added Vitest-based mobile API client contract tests for registration and login request shapes.
+- Added Vitest-based mobile API client contract tests for preview, settings update, vote submission, and parsed API errors.
+- Added Vitest-based mobile API client contract tests for room creation, join, lobby lifecycle controls, and profile settings.
+- Added Vitest-based mobile API client contract tests for room-game resume, submit-word, random-word, skip-expired-turn, and vote-results calls.
+- Added Vitest-based mobile realtime client tests for authenticated connect, queued subscriptions, and room/user event routing.
+- Added a Phase 9 manual mobile QA checklist for two-client happy path, reconnect/resume, realtime lifecycle, and session handling.
+
+Testing implemented:
+
+- Mobile TypeScript coverage confirms the Phase 9 shell and API contracts compile.
+- Mobile TypeScript coverage confirms create-room settings compile.
+- Backend integration coverage confirms active participants can fetch a game by room and outsiders cannot.
+- Mobile TypeScript coverage confirms the game screen and current-turn actions compile.
+- Mobile TypeScript coverage confirms current-turn display-name resolution compiles.
+- Mobile TypeScript coverage confirms active-turn countdown display compiles.
+- Mobile TypeScript coverage confirms one-word input validation wiring compiles.
+- Mobile TypeScript coverage confirms in-game AI generation indicator wiring compiles.
+- Mobile TypeScript coverage confirms voting/result screen wiring compiles.
+- Mobile TypeScript coverage confirms final-story sharing compiles.
+- Mobile TypeScript coverage confirms realtime event wiring compiles.
+- Mobile realtime client tests verify queued STOMP subscriptions flush after `CONNECTED`.
+- Mobile realtime client tests verify room-topic and user-queue messages route to the right handlers.
+- Mobile TypeScript coverage confirms profile/settings wiring compiles.
+- Mobile TypeScript coverage confirms the join-room preview flow compiles.
+- Mobile TypeScript coverage confirms lobby leave, close, and kick controls compile.
+- Mobile TypeScript coverage confirms lobby room-code sharing compiles.
+- Mobile TypeScript coverage confirms room lifecycle event cleanup compiles.
+- Mobile TypeScript coverage confirms host lobby settings editing compiles.
+- Mobile TypeScript coverage confirms foreground resume refresh wiring compiles.
+- Mobile TypeScript coverage confirms restored-session refresh handling compiles.
+- Mobile TypeScript coverage confirms protected API refresh-and-retry action handling compiles.
+- Mobile TypeScript coverage confirms refresh-token logout revocation wiring compiles.
+- Mobile API client contract tests verify unauthenticated registration and login request shapes.
+- Mobile API client contract tests verify key REST paths, methods, headers, JSON bodies, and parsed error responses.
+- Mobile API client contract tests verify room creation, join, lobby leave, close, kick, start, and profile request shapes.
+- Mobile API client contract tests verify gameplay resume, turn action, suggestion, skip, and results request shapes.
+- Mobile API client contract tests verify unauthenticated refresh-token rotation request shape.
+- Mobile API client contract tests verify unauthenticated logout revocation request shape.
+- Mobile API client contract tests verify the signed-in room list request used by Home bootstrap.
+- Manual acceptance checklist is documented at `docs/testing/mobile-phase-9-manual-checklist.md`.
+
 ### Phase 10: Hardening and MVP Release Readiness
 
 Goal: make the system safe enough and observable enough for private beta.

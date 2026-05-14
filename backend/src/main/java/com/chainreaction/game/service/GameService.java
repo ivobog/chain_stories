@@ -133,6 +133,18 @@ public class GameService {
         return response(game, currentTurn, activeParticipants(game.getRoom().getId()));
     }
 
+    @Transactional(readOnly = true)
+    public GameResponse getRoomGame(UUID userId, UUID roomId) {
+        Game game = gameRepository.findByRoomId(roomId)
+                .orElseThrow(() -> new ApiException(ErrorCode.GAME_NOT_FOUND, HttpStatus.NOT_FOUND,
+                        "Room does not have a game."));
+        requireActiveParticipant(roomId, userId);
+        GameTurn currentTurn = gameTurnRepository.findByGameIdAndTurnNumber(game.getId(), game.getCurrentTurnNumber())
+                .orElseThrow(() -> new ApiException(ErrorCode.GAME_NOT_FOUND, HttpStatus.NOT_FOUND,
+                        "Current turn does not exist."));
+        return response(game, currentTurn, activeParticipants(roomId));
+    }
+
     @Transactional
     public GameResponse submitWord(UUID userId, UUID gameId, UUID turnId, SubmitWordRequest request) {
         Game game = requireActiveGame(gameId);

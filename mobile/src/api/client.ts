@@ -1,10 +1,15 @@
 import type {
   AuthResponse,
   GameResponse,
+  MeResponse,
+  RandomWordSuggestionResponse,
   RoomPreviewResponse,
   RoomResponse,
   RoomSettingsResponse,
   RoomSummaryResponse,
+  VoteCategory,
+  VoteResponse,
+  VoteResultsResponse,
 } from "./types";
 
 export class ApiError extends Error {
@@ -33,6 +38,18 @@ export interface SubmitWordPayload {
   word: string;
 }
 
+export interface SubmitVotePayload {
+  category: VoteCategory;
+  targetUserId?: string;
+  targetStorySegmentId?: string;
+}
+
+export interface UpdateProfilePayload {
+  displayName: string;
+  avatarUrl?: string | null;
+  favoriteStyle?: string | null;
+}
+
 export class ChainStoriesApiClient {
   constructor(
     private readonly baseUrl: string,
@@ -56,6 +73,33 @@ export class ChainStoriesApiClient {
       method: "POST",
       body: { email, password },
       authenticated: false,
+    });
+  }
+
+  refresh(refreshToken: string) {
+    return this.request<AuthResponse>("/auth/refresh", {
+      method: "POST",
+      body: { refreshToken },
+      authenticated: false,
+    });
+  }
+
+  logout(refreshToken: string) {
+    return this.request<void>("/auth/logout", {
+      method: "POST",
+      body: { refreshToken },
+      authenticated: false,
+    });
+  }
+
+  me() {
+    return this.request<MeResponse>("/me");
+  }
+
+  updateProfile(payload: UpdateProfilePayload) {
+    return this.request<MeResponse>("/me/profile", {
+      method: "PATCH",
+      body: payload,
     });
   }
 
@@ -122,6 +166,10 @@ export class ChainStoriesApiClient {
     return this.request<GameResponse>(`/games/${encodeURIComponent(gameId)}`);
   }
 
+  getRoomGame(roomId: string) {
+    return this.request<GameResponse>(`/rooms/${encodeURIComponent(roomId)}/game`);
+  }
+
   submitWord(gameId: string, turnId: string, payload: SubmitWordPayload) {
     return this.request<GameResponse>(
       `/games/${encodeURIComponent(gameId)}/turns/${encodeURIComponent(turnId)}/submit-word`,
@@ -130,6 +178,32 @@ export class ChainStoriesApiClient {
         body: payload,
       },
     );
+  }
+
+  skipExpiredTurn(gameId: string, turnId: string) {
+    return this.request<GameResponse>(
+      `/games/${encodeURIComponent(gameId)}/turns/${encodeURIComponent(turnId)}/skip-expired`,
+      {
+        method: "POST",
+      },
+    );
+  }
+
+  randomWord(gameId: string) {
+    return this.request<RandomWordSuggestionResponse>(`/games/${encodeURIComponent(gameId)}/random-word`, {
+      method: "POST",
+    });
+  }
+
+  submitVote(gameId: string, payload: SubmitVotePayload) {
+    return this.request<VoteResponse>(`/games/${encodeURIComponent(gameId)}/votes`, {
+      method: "POST",
+      body: payload,
+    });
+  }
+
+  voteResults(gameId: string) {
+    return this.request<VoteResultsResponse>(`/games/${encodeURIComponent(gameId)}/votes/results`);
   }
 
   private async request<T>(

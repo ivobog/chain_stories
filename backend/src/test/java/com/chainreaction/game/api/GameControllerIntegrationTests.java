@@ -111,6 +111,14 @@ class GameControllerIntegrationTests {
                 .andExpect(jsonPath("$.fullStory", equalTo("The story begins, waiting for the first word.")))
                 .andExpect(jsonPath("$.storySegments[0].content", equalTo("The story begins, waiting for the first word.")));
 
+        mockMvc.perform(get("/api/v1/rooms/" + roomId + "/game")
+                        .header("Authorization", "Bearer " + player.accessToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.gameId", equalTo(gameId)))
+                .andExpect(jsonPath("$.roomId", equalTo(roomId)))
+                .andExpect(jsonPath("$.currentTurn.playerUserId", equalTo(host.userId().toString())))
+                .andExpect(jsonPath("$.fullStory", equalTo("The story begins, waiting for the first word.")));
+
         mockMvc.perform(get("/api/v1/rooms/" + roomId)
                         .header("Authorization", "Bearer " + player.accessToken()))
                 .andExpect(status().isOk())
@@ -194,6 +202,11 @@ class GameControllerIntegrationTests {
         String gameId = (String) responseBody(startResult).get("gameId");
 
         mockMvc.perform(get("/api/v1/games/" + gameId)
+                        .header("Authorization", "Bearer " + outsider.accessToken()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode", equalTo("ACCESS_DENIED")));
+
+        mockMvc.perform(get("/api/v1/rooms/" + roomId + "/game")
                         .header("Authorization", "Bearer " + outsider.accessToken()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode", equalTo("ACCESS_DENIED")));

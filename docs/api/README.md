@@ -59,6 +59,7 @@ Close, leave, and kick actions reject rooms that are already closed, expired, or
 Games:
 
 - `POST /api/v1/rooms/{roomId}/games/start`
+- `GET /api/v1/rooms/{roomId}/game`
 - `GET /api/v1/games/{gameId}`
 - `POST /api/v1/games/{gameId}/turns/{turnId}/submit-word`
 - `POST /api/v1/games/{gameId}/turns/{turnId}/skip-expired`
@@ -67,7 +68,7 @@ Games:
 - `GET /api/v1/games/{gameId}/votes/results`
 
 Only the room host can start a game. A game requires at least two active players, moves the room to `ACTIVE`, creates the first turn from join order, and persists an opening story segment placeholder.
-The submit-word endpoint currently uses the Phase 5 AI provider selected by `AI_PROVIDER`; `mock` is the default provider and uses `AI_MOCK_MODEL` for its reported model name. Set `AI_PROVIDER=openai` with `OPENAI_API_KEY` to call the OpenAI Responses API through the same provider-neutral pipeline. OpenAI calls use configurable `AI_OPENAI_CONNECT_TIMEOUT` and `AI_OPENAI_READ_TIMEOUT` limits. It accepts exactly one moderated word, enforces current-player ownership, retries invalid provider output up to `AI_GENERATION_MAX_ATTEMPTS`, validates structured AI output, runs output moderation, stores the accepted sentence, advances to the next active player by join order, and moves the game to `VOTING` after the configured turn limit.
+The room-game endpoint returns the current game for an active room so reconnecting clients can resume gameplay from room state. The submit-word endpoint currently uses the Phase 5 AI provider selected by `AI_PROVIDER`; `mock` is the default provider and uses `AI_MOCK_MODEL` for its reported model name. Set `AI_PROVIDER=openai` with `OPENAI_API_KEY` to call the OpenAI Responses API through the same provider-neutral pipeline. OpenAI calls use configurable `AI_OPENAI_CONNECT_TIMEOUT` and `AI_OPENAI_READ_TIMEOUT` limits. It accepts exactly one moderated word, enforces current-player ownership, retries invalid provider output up to `AI_GENERATION_MAX_ATTEMPTS`, validates structured AI output, runs output moderation, stores the accepted sentence, advances to the next active player by join order, and moves the game to `VOTING` after the configured turn limit.
 Provider integrations should return structured JSON with `sentence`, `usedWord`, `tone`, `intensity`, `safetyLevel`, `summary`, `storyDirection`, and `tags`; the backend maps this into the internal generation result before validation and moderation.
 Each provider attempt is recorded in `ai_generation_attempts` with game/turn ids, normalized word, attempt number, provider/model, token counts, latency, status, and failure reason for backend observability.
 AI generation attempts also emit Micrometer metrics: `ai_generation_attempts_total`, `ai_generation_attempt_duration`, and `ai_generation_failures_total` for exhausted retries. Phase 6 anti-repetition also emits `word_similarity_rejections_total` with provider, writing style, and language tags.

@@ -67,6 +67,7 @@ Useful endpoints:
 - `POST http://localhost:8080/api/v1/rooms/{roomId}/leave`
 - `POST http://localhost:8080/api/v1/rooms/{roomId}/participants/{userId}/kick`
 - `POST http://localhost:8080/api/v1/rooms/{roomId}/games/start`
+- `GET http://localhost:8080/api/v1/rooms/{roomId}/game`
 - `GET http://localhost:8080/api/v1/games/{gameId}`
 - `POST http://localhost:8080/api/v1/games/{gameId}/turns/{turnId}/submit-word`
 - `POST http://localhost:8080/api/v1/games/{gameId}/turns/{turnId}/skip-expired`
@@ -80,7 +81,16 @@ npm install
 npm run start
 ```
 
-The mobile app still shows a placeholder screen, but `mobile/src/api` now has typed REST and STOMP WebSocket clients ready for auth, room resume, room lifecycle, game, and realtime Phase 8 screens.
+The mobile app now has the Phase 9 starter shell: persisted login/register with restored-session refresh, protected-request retry, and logout revocation, automatic room loading on sign-in/session restore, configurable room creation, room-code preview before join, lobby room-code sharing, lobby participant and host controls, host lobby settings editing, active-room game resume, foreground resume refresh, an initial game screen with whole-story timeline, display-name turn ownership, active-turn countdown, client-side one-word validation, in-game AI generation status, random word suggestions, skip-expired-turn actions, voting/final-results panels, final-story sharing, live room/game/vote/lifecycle updates over STOMP, and a basic profile/settings screen. `mobile/src/api` has typed REST and WebSocket clients with focused auth/session, room, lobby, profile, gameplay, vote, and realtime contract tests ready for broader manual device testing.
+
+Mobile contract checks:
+
+```powershell
+cd mobile
+npm run test
+```
+
+Manual Phase 9 acceptance is tracked in `docs/testing/mobile-phase-9-manual-checklist.md`.
 
 ## Environment
 
@@ -100,4 +110,4 @@ Word registry prompt memory is bounded by `WORD_REGISTRY_RECENT_WINDOW_DAYS`; in
 
 ## Current Phase
 
-Phase 8 in progress: Voting and Results. Games move to voting after the turn limit, accept one persisted vote per category, persist and broadcast result projections, and finish once every active participant has completed all categories.
+Phase 9 in progress: Mobile MVP. The current mobile slice adds secure session persistence with refresh-token rotation, protected-request retry, logout revocation, auth screens, automatic room loading, home room actions, configurable room creation, join-room preview, lobby room-code sharing, lobby leave/close/kick/settings controls, active-room game resume, foreground resume refresh, first playable game screen, mobile voting/results, live lifecycle updates, and profile/settings.

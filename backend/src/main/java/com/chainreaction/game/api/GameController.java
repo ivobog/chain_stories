@@ -39,6 +39,13 @@ public class GameController {
         return gameService.getGame(principal.getUserId(), gameId);
     }
 
+    @GetMapping("/rooms/{roomId}/game")
+    public GameResponse getRoomGame(
+            @AuthenticationPrincipal CurrentUserPrincipal principal,
+            @PathVariable UUID roomId) {
+        return gameService.getRoomGame(principal.getUserId(), roomId);
+    }
+
     @PostMapping("/games/{gameId}/turns/{turnId}/submit-word")
     public GameResponse submitWord(
             @AuthenticationPrincipal CurrentUserPrincipal principal,

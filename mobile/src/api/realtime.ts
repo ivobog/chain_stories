@@ -15,6 +15,7 @@ export class RealtimeConnection {
   private socket?: WebSocket;
   private nextSubscriptionId = 1;
   private connected = false;
+  private pendingSubscriptions: { id: string; destination: string }[] = [];
 
   constructor(private readonly options: RealtimeConnectionOptions) {}
 
@@ -60,10 +61,11 @@ export class RealtimeConnection {
   private subscribe(destination: string) {
     const id = `sub-${this.nextSubscriptionId}`;
     this.nextSubscriptionId += 1;
-    this.sendFrame("SUBSCRIBE", {
-      id,
-      destination,
-    });
+    if (this.connected) {
+      this.sendSubscription(id, destination);
+    } else {
+      this.pendingSubscriptions.push({ id, destination });
+    }
     return id;
   }
 
@@ -72,6 +74,7 @@ export class RealtimeConnection {
       const { command, headers, body } = parseFrame(frame);
       if (command === "CONNECTED") {
         this.connected = true;
+        this.flushPendingSubscriptions();
         return;
       }
       if (command === "MESSAGE") {
@@ -87,6 +90,20 @@ export class RealtimeConnection {
         this.options.onError?.(new Error(body || "WebSocket broker error."));
       }
     }
+  }
+
+  private flushPendingSubscriptions() {
+    for (const subscription of this.pendingSubscriptions) {
+      this.sendSubscription(subscription.id, subscription.destination);
+    }
+    this.pendingSubscriptions = [];
+  }
+
+  private sendSubscription(id: string, destination: string) {
+    this.sendFrame("SUBSCRIBE", {
+      id,
+      destination,
+    });
   }
 
   private sendFrame(command: string, headers: Record<string, string>, body = "") {
