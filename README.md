@@ -33,6 +33,12 @@ This starts:
 - PostgreSQL on `localhost:15432`
 - Redis on `localhost:6379`
 
+Run the backend in Docker as well:
+
+```powershell
+docker compose --profile app up -d --build backend
+```
+
 ## Backend
 
 ```powershell
@@ -100,14 +106,24 @@ For non-local environments, set `JWT_ALLOW_INSECURE_DEV_SECRET=false` and provid
 
 Account deletion is a soft delete with privacy cleanup: active refresh tokens are revoked and stored user/profile identifiers are anonymized so the original email can be reused.
 
+Unauthenticated auth actions are rate limited with `AUTH_RATE_LIMIT_PER_WINDOW` and `AUTH_RATE_LIMIT_WINDOW_SECONDS`; the limiter currently covers registration, login, password reset requests, and password reset confirmations.
+
 Mock subscription purchase APIs are disabled by default. Set `SUBSCRIPTIONS_MOCK_PURCHASES_ENABLED=true` only for local/test flows until real store receipt validation is implemented.
 
-AI story generation uses `AI_PROVIDER=mock` by default so local development and tests do not need external credentials. To use OpenAI for Phase 5 generation, set `AI_PROVIDER=openai`, provide `OPENAI_API_KEY`, and optionally override `AI_OPENAI_MODEL`, `AI_OPENAI_BASE_URL`, `AI_OPENAI_CONNECT_TIMEOUT`, or `AI_OPENAI_READ_TIMEOUT`. The backend sends structured JSON schema requests and still validates, moderates, retries, and records attempts before accepting a story segment.
+AI story generation uses `AI_PROVIDER=mock` by default so local development and tests do not need external credentials. To use OpenAI for Phase 5 generation, set `AI_PROVIDER=openai`, provide `OPENAI_API_KEY`, and optionally override `AI_OPENAI_MODEL`, `AI_OPENAI_BASE_URL`, `AI_OPENAI_CONNECT_TIMEOUT`, or `AI_OPENAI_READ_TIMEOUT`. The backend sends structured JSON schema requests and still validates, moderates, retries, and records attempts before accepting a story segment. Submit-word attempts and AI generation calls are rate limited with `SUBMIT_WORD_RATE_LIMIT_PER_WINDOW`, `SUBMIT_WORD_RATE_LIMIT_WINDOW_SECONDS`, `AI_GENERATION_RATE_LIMIT_PER_WINDOW`, and `AI_GENERATION_RATE_LIMIT_WINDOW_SECONDS`.
 
 AI observability is available through logs, the `ai_generation_attempts` table, and Micrometer metrics. In local development, expose metrics by adding `metrics` to `management.endpoints.web.exposure.include`, then inspect `ai_generation_attempts_total`, `ai_generation_attempt_duration`, `ai_generation_failures_total`, and `word_similarity_rejections_total` through Actuator.
+
+Private-beta Prometheus query examples for the room/game funnel, AI failures, moderation blocks, random-word requests, and subscription upgrades are documented in `docs/operations/prometheus-queries.md`. Backend image build and staging smoke-test notes are documented in `docs/operations/deployment-readiness.md`.
+
+Basic k6 room/game load-test instructions are documented in `docs/testing/load-test-room-game.md`.
+
+Private-beta security and privacy gates are documented in `docs/operations/security-checklist.md` and `docs/operations/privacy-account-deletion-checklist.md`.
+
+Moderation blocks are persisted to `moderation_events` for private-beta review. Admin users can fetch recent blocked submitted-word and AI-output events at `GET /api/v1/admin/moderation/events`.
 
 Word registry prompt memory is bounded by `WORD_REGISTRY_RECENT_WINDOW_DAYS`; inactive rows are retained during private beta for debugging and tuning. See `docs/operations/word-registry-retention.md` for the Phase 6 retention and future pruning strategy.
 
 ## Current Phase
 
-Phase 9 in progress: Mobile MVP. The current mobile slice adds secure session persistence with refresh-token rotation, protected-request retry, logout revocation, auth screens, automatic room loading, home room actions, configurable room creation, join-room preview, lobby room-code sharing, lobby leave/close/kick/settings controls, active-room game resume, foreground resume refresh, first playable game screen, mobile voting/results, live lifecycle updates, and profile/settings.
+Phase 10 in progress: Hardening and MVP release readiness. Current slices add configurable auth, submit-word, random-word, and AI generation rate limits, durable moderation-event auditing with an admin review endpoint, MVP metrics including active WebSocket connections, trace-ready observations for key room/game/AI/voting flows, documented Prometheus queries, a backend Docker image path with CI release-readiness checks and staging notes, a basic room/game load test, and private-beta security/privacy checklists.

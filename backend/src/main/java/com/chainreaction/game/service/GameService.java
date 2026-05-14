@@ -32,6 +32,8 @@ import com.chainreaction.game.repository.GameRepository;
 import com.chainreaction.game.repository.GameTurnRepository;
 import com.chainreaction.game.repository.StoryRepository;
 import com.chainreaction.game.repository.StorySegmentRepository;
+import com.chainreaction.observability.ApplicationMetrics;
+import com.chainreaction.observability.ApplicationObservations;
 import com.chainreaction.realtime.api.RealtimeEventType;
 import com.chainreaction.realtime.service.RealtimeEventPublisher;
 import com.chainreaction.room.domain.Room;
@@ -60,6 +62,9 @@ public class GameService {
     private final WordSuggestionAnalyticsService wordSuggestionAnalyticsService;
     private final WordSuggestionRateLimiter wordSuggestionRateLimiter;
     private final WordRegistryService wordRegistryService;
+    private final SubmitWordRateLimiter submitWordRateLimiter;
+    private final ApplicationMetrics applicationMetrics;
+    private final ApplicationObservations applicationObservations;
 
     public GameService(
             GameRepository gameRepository,
@@ -73,7 +78,10 @@ public class GameService {
             WordSuggestionService wordSuggestionService,
             WordSuggestionAnalyticsService wordSuggestionAnalyticsService,
             WordSuggestionRateLimiter wordSuggestionRateLimiter,
-            WordRegistryService wordRegistryService) {
+            WordRegistryService wordRegistryService,
+            SubmitWordRateLimiter submitWordRateLimiter,
+            ApplicationMetrics applicationMetrics,
+            ApplicationObservations applicationObservations) {
         this.gameRepository = gameRepository;
         this.gameTurnRepository = gameTurnRepository;
         this.storyRepository = storyRepository;
@@ -86,10 +94,19 @@ public class GameService {
         this.wordSuggestionAnalyticsService = wordSuggestionAnalyticsService;
         this.wordSuggestionRateLimiter = wordSuggestionRateLimiter;
         this.wordRegistryService = wordRegistryService;
+        this.submitWordRateLimiter = submitWordRateLimiter;
+        this.applicationMetrics = applicationMetrics;
+        this.applicationObservations = applicationObservations;
     }
 
     @Transactional
     public GameResponse startGame(UUID userId, UUID roomId) {
+        return applicationObservations.observe(
+                "game.start",
+                () -> startGameObserved(userId, roomId));
+    }
+
+    private GameResponse startGameObserved(UUID userId, UUID roomId) {
         Room room = requireRoom(roomId);
         requireHost(room, userId);
         if (room.getStatus() != RoomStatus.LOBBY) {
@@ -118,6 +135,7 @@ public class GameService {
         storySegmentRepository.save(new StorySegment(story, null, null, 1, OPENING_SEGMENT));
 
         GameResponse result = response(game, firstTurn, participants);
+        applicationMetrics.recordGameStarted(room.getWritingStyle(), room.getLanguage(), room.getSafetyMode());
         publishGameEvent(game, RealtimeEventType.GAME_STARTED, result);
         publishGameEvent(game, RealtimeEventType.TURN_STARTED, result);
         return result;
@@ -147,6 +165,12 @@ public class GameService {
 
     @Transactional
     public GameResponse submitWord(UUID userId, UUID gameId, UUID turnId, SubmitWordRequest request) {
+        return applicationObservations.observe(
+                "game.submit_word",
+                () -> submitWordObserved(userId, gameId, turnId, request));
+    }
+
+    private GameResponse submitWordObserved(UUID userId, UUID gameId, UUID turnId, SubmitWordRequest request) {
         Game game = requireActiveGame(gameId);
         requireActiveParticipant(game.getRoom().getId(), userId);
         GameTurn turn = requireCurrentActiveTurn(game, turnId);
@@ -154,6 +178,7 @@ public class GameService {
             throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN,
                     "Only the current player can submit a word.");
         }
+        submitWordRateLimiter.checkAllowed(userId, gameId, turnId);
 
         Story story = storyRepository.findByGameId(gameId)
                 .orElseThrow(() -> new ApiException(ErrorCode.GAME_NOT_FOUND, HttpStatus.NOT_FOUND,
@@ -163,6 +188,7 @@ public class GameService {
         StoryGenerationResult generation = storyGenerationService.generate(
                 game.getId(),
                 turn.getId(),
+                userId,
                 game.getRoom(),
                 request.word(),
                 fullStory(story.getId()));
@@ -203,6 +229,12 @@ public class GameService {
 
     @Transactional
     public RandomWordSuggestionResponse randomWord(UUID userId, UUID gameId) {
+        return applicationObservations.observe(
+                "game.random_word",
+                () -> randomWordObserved(userId, gameId));
+    }
+
+    private RandomWordSuggestionResponse randomWordObserved(UUID userId, UUID gameId) {
         Game game = requireActiveGame(gameId);
         requireActiveParticipant(game.getRoom().getId(), userId);
         GameTurn turn = gameTurnRepository.findByGameIdAndTurnNumber(gameId, game.getCurrentTurnNumber())
@@ -217,6 +249,10 @@ public class GameService {
                     "Only the current player can request a random word.");
         }
         wordSuggestionRateLimiter.checkAllowed(userId, gameId);
+        applicationMetrics.recordRandomWordRequest(
+                game.getRoom().getWritingStyle(),
+                game.getRoom().getLanguage(),
+                game.getRoom().getSafetyMode());
 
         Story story = storyRepository.findByGameId(gameId)
                 .orElseThrow(() -> new ApiException(ErrorCode.GAME_NOT_FOUND, HttpStatus.NOT_FOUND,

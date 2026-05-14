@@ -30,6 +30,39 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    profiles:
+      - app
+    build:
+      context: ./backend
+    container_name: chain-stories-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/chain_stories
+      SPRING_DATASOURCE_USERNAME: chain_stories
+      SPRING_DATASOURCE_PASSWORD: chain_stories_dev
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      JWT_ISSUER: ${JWT_ISSUER:-chain-stories-local}
+      JWT_SECRET: ${JWT_SECRET:-replace-with-local-development-secret}
+      JWT_ALLOW_INSECURE_DEV_SECRET: ${JWT_ALLOW_INSECURE_DEV_SECRET:-true}
+      SUBSCRIPTIONS_MOCK_PURCHASES_ENABLED: ${SUBSCRIPTIONS_MOCK_PURCHASES_ENABLED:-false}
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health/readiness | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
 volumes:
   postgres-data:
   redis-data:

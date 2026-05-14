@@ -25,7 +25,10 @@ import org.springframework.test.web.servlet.MvcResult;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "app.security.auth.rate-limit-per-window=5",
+        "app.security.auth.rate-limit-window-seconds=60"
+})
 @AutoConfigureMockMvc
 class AuthControllerIntegrationTests {
 
@@ -160,6 +163,28 @@ class AuthControllerIntegrationTests {
                         .header("Authorization", "Bearer not-a-real-token"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode", equalTo("AUTH_REQUIRED")));
+    }
+
+    @Test
+    void loginAttemptsAreRateLimited() throws Exception {
+        String email = "limited-login-" + UUID.randomUUID() + "@example.com";
+        Map<String, String> request = Map.of(
+                "email", email,
+                "password", "WrongPassword123!");
+
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(post("/api/v1/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(request)))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.errorCode", equalTo("INVALID_CREDENTIALS")));
+        }
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(request)))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.errorCode", equalTo("RATE_LIMITED")));
     }
 
     @Test

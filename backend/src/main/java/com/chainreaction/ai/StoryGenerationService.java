@@ -12,8 +12,13 @@ import org.springframework.stereotype.Service;
 
 import com.chainreaction.common.error.ApiException;
 import com.chainreaction.common.error.ErrorCode;
+import com.chainreaction.moderation.ModerationAuditService;
+import com.chainreaction.moderation.ModerationEventSource;
+import com.chainreaction.observability.ApplicationObservations;
 import com.chainreaction.room.domain.Room;
 import com.chainreaction.word.WordRegistryService;
+
+import io.micrometer.common.KeyValue;
 
 @Service
 public class StoryGenerationService {
@@ -29,6 +34,9 @@ public class StoryGenerationService {
     private final AiGenerationAttemptRecorder attemptRecorder;
     private final AiGenerationMetrics metrics;
     private final WordRegistryService wordRegistryService;
+    private final AiGenerationRateLimiter aiGenerationRateLimiter;
+    private final ModerationAuditService moderationAuditService;
+    private final ApplicationObservations applicationObservations;
     private final int maxAttempts;
 
     public StoryGenerationService(
@@ -41,6 +49,9 @@ public class StoryGenerationService {
             AiGenerationAttemptRecorder attemptRecorder,
             AiGenerationMetrics metrics,
             WordRegistryService wordRegistryService,
+            AiGenerationRateLimiter aiGenerationRateLimiter,
+            ModerationAuditService moderationAuditService,
+            ApplicationObservations applicationObservations,
             @Value("${app.ai.generation.max-attempts:3}") int maxAttempts) {
         this.wordModerationService = wordModerationService;
         this.promptBuilder = promptBuilder;
@@ -51,11 +62,51 @@ public class StoryGenerationService {
         this.attemptRecorder = attemptRecorder;
         this.metrics = metrics;
         this.wordRegistryService = wordRegistryService;
+        this.aiGenerationRateLimiter = aiGenerationRateLimiter;
+        this.moderationAuditService = moderationAuditService;
+        this.applicationObservations = applicationObservations;
         this.maxAttempts = Math.max(1, maxAttempts);
     }
 
-    public StoryGenerationResult generate(UUID gameId, UUID turnId, Room room, String word, String currentStory) {
-        ModeratedWord moderatedWord = wordModerationService.moderate(word, room.getSafetyMode());
+    public StoryGenerationResult generate(
+            UUID gameId,
+            UUID turnId,
+            UUID playerUserId,
+            Room room,
+            String word,
+            String currentStory) {
+        return applicationObservations.observe(
+                "ai.story_generation",
+                () -> generateObserved(gameId, turnId, playerUserId, room, word, currentStory),
+                KeyValue.of("provider", aiProvider.providerName()),
+                KeyValue.of("writing_style", room.getWritingStyle().name().toLowerCase()),
+                KeyValue.of("language", room.getLanguage()),
+                KeyValue.of("safety_mode", room.getSafetyMode().name().toLowerCase()));
+    }
+
+    private StoryGenerationResult generateObserved(
+            UUID gameId,
+            UUID turnId,
+            UUID playerUserId,
+            Room room,
+            String word,
+            String currentStory) {
+        aiGenerationRateLimiter.checkAllowed(gameId, turnId);
+        ModeratedWord moderatedWord;
+        try {
+            moderatedWord = wordModerationService.moderate(word, room.getSafetyMode());
+        } catch (ApiException exception) {
+            moderationAuditService.recordBlocked(
+                    gameId,
+                    room.getId(),
+                    turnId,
+                    playerUserId,
+                    ModerationEventSource.SUBMITTED_WORD,
+                    room.getSafetyMode(),
+                    exception.getMessage(),
+                    word);
+            throw exception;
+        }
         StoryGenerationRequest request = new StoryGenerationRequest(
                 moderatedWord.normalized(),
                 room.getWritingStyle(),
@@ -114,6 +165,18 @@ public class StoryGenerationService {
                             aiProvider.providerName(),
                             room.getWritingStyle().name(),
                             room.getLanguage());
+                }
+                if (result != null && exception instanceof ApiException apiException
+                        && apiException.getStatus().is5xxServerError()) {
+                    moderationAuditService.recordBlocked(
+                            gameId,
+                            room.getId(),
+                            turnId,
+                            playerUserId,
+                            ModerationEventSource.AI_OUTPUT,
+                            room.getSafetyMode(),
+                            exception.getMessage(),
+                            result.sentence());
                 }
                 LOGGER.warn(
                         "story_generation_attempt_failed attempt={} maxAttempts={} latencyMs={} reason={}",

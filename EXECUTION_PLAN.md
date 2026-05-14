@@ -909,6 +909,46 @@ Exit criteria:
 - AI provider failures are handled without corrupting game state.
 - Private beta can begin.
 
+Implemented so far:
+
+- Added configurable fixed-window rate limiting for unauthenticated auth flows.
+- Applied auth rate limits to registration, login, password reset requests, and password reset confirmations.
+- Kept random-word rate limiting from Phase 8/9 in place as the first gameplay limiter.
+- Added configurable submit-word rate limiting for repeated attempts on the same active turn.
+- Added configurable AI generation rate limiting before provider calls.
+- Added durable moderation event audit storage for blocked submitted words and blocked AI output.
+- Added an admin-only moderation event review endpoint at `GET /api/v1/admin/moderation/events`.
+- Added MVP Micrometer counters for rooms created, games started/finished, random-word requests, moderation blocks, and subscription upgrades.
+- Added `websocket_connections_active` gauge tracking active STOMP sessions.
+- Added trace-ready Micrometer observations for room create/join, game start/submit/random-word, AI story generation, and vote submit flows.
+- Added documented Prometheus queries at `docs/operations/prometheus-queries.md`.
+- Added a backend production Dockerfile and Compose `app` profile for local production-like container runs.
+- Added CI release-readiness checks for the Compose `app` profile, backend Docker image build, load-test script syntax, and mobile contract tests.
+- Added deployment readiness and staging smoke-test documentation at `docs/operations/deployment-readiness.md`.
+- Confirmed public liveness/readiness probe access for container and deployment health checks.
+- Added a basic k6 room/game/voting load-test script at `tools/load/k6-room-game.mjs`.
+- Added load-test runbook documentation at `docs/testing/load-test-room-game.md`.
+- Added a private-beta security checklist at `docs/operations/security-checklist.md`.
+- Added a privacy/account deletion checklist at `docs/operations/privacy-account-deletion-checklist.md`.
+
+Testing implemented:
+
+- Auth rate limiter unit coverage confirms configured limits and independent action buckets.
+- Auth API integration coverage confirms repeated login attempts return `RATE_LIMITED` with HTTP 429.
+- Submit-word and AI generation limiter unit coverage confirms configured limits and independent turn buckets.
+- Game API integration coverage confirms repeated invalid submit-word attempts return `RATE_LIMITED` with HTTP 429 before AI attempts are recorded.
+- Story generation unit coverage confirms input and output moderation blocks are audited.
+- Game API integration coverage confirms blocked submissions create moderation events that survive rollback.
+- Admin moderation integration coverage confirms only admins can review recent moderation events.
+- Observability unit coverage confirms the Phase 10 counter names and tags used by Prometheus queries.
+- WebSocket connection metrics unit coverage confirms unique sessions increment/decrement the active connection gauge.
+- Observation unit coverage confirms key flow spans keep stable names and low-cardinality tags while recording errors.
+- Docker Compose configuration validates with the backend `app` profile enabled.
+- CI release-readiness coverage validates the backend image path, Compose profile, load-test syntax, and mobile API contract tests.
+- Status integration coverage confirms `/actuator/health`, `/actuator/health/liveness`, and `/actuator/health/readiness` are publicly reachable.
+- Load-test script syntax validates with Node's parser.
+- Account deletion integration coverage from earlier phases remains the executable check for refresh-token revocation, email reuse, and profile anonymization.
+
 ## 6. Data Model Implementation Order
 
 Implement tables in this order to reduce migration churn:

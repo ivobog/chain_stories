@@ -31,6 +31,7 @@ public class AuthService {
     private final JwtTokenService jwtTokenService;
     private final RefreshTokenService refreshTokenService;
     private final AuthEventService authEventService;
+    private final AuthRateLimiter authRateLimiter;
 
     public AuthService(
             UserRepository userRepository,
@@ -38,18 +39,21 @@ public class AuthService {
             PasswordEncoder passwordEncoder,
             JwtTokenService jwtTokenService,
             RefreshTokenService refreshTokenService,
-            AuthEventService authEventService) {
+            AuthEventService authEventService,
+            AuthRateLimiter authRateLimiter) {
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenService = jwtTokenService;
         this.refreshTokenService = refreshTokenService;
         this.authEventService = authEventService;
+        this.authRateLimiter = authRateLimiter;
     }
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         String normalizedEmail = normalizeEmail(request.email());
+        authRateLimiter.checkRegistrationAllowed(normalizedEmail);
         if (userRepository.existsNonDeletedByEmailIgnoreCase(normalizedEmail)) {
             throw new ApiException(ErrorCode.DUPLICATE_EMAIL, HttpStatus.CONFLICT, "Email is already registered.");
         }
@@ -63,6 +67,7 @@ public class AuthService {
     @Transactional
     public AuthResponse login(LoginRequest request) {
         String normalizedEmail = normalizeEmail(request.email());
+        authRateLimiter.checkLoginAllowed(normalizedEmail);
         User user = userRepository.findByEmailIgnoreCase(normalizedEmail)
                 .orElseThrow(() -> {
                     authEventService.record(null, normalizedEmail, "LOGIN", "FAILURE", "INVALID_CREDENTIALS");

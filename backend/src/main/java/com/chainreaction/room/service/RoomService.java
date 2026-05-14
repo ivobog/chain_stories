@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.chainreaction.common.error.ApiException;
 import com.chainreaction.common.error.ErrorCode;
+import com.chainreaction.observability.ApplicationMetrics;
+import com.chainreaction.observability.ApplicationObservations;
 import com.chainreaction.realtime.api.RealtimeEventType;
 import com.chainreaction.realtime.service.RealtimeEventPublisher;
 import com.chainreaction.room.api.CreateRoomRequest;
@@ -33,6 +35,8 @@ import com.chainreaction.user.domain.User;
 import com.chainreaction.user.repository.UserProfileRepository;
 import com.chainreaction.user.repository.UserRepository;
 
+import io.micrometer.common.KeyValue;
+
 @Service
 public class RoomService {
 
@@ -43,6 +47,8 @@ public class RoomService {
     private final EntitlementService entitlementService;
     private final RoomCodeGenerator roomCodeGenerator;
     private final RealtimeEventPublisher realtimeEventPublisher;
+    private final ApplicationMetrics applicationMetrics;
+    private final ApplicationObservations applicationObservations;
 
     public RoomService(
             RoomRepository roomRepository,
@@ -51,7 +57,9 @@ public class RoomService {
             UserProfileRepository userProfileRepository,
             EntitlementService entitlementService,
             RoomCodeGenerator roomCodeGenerator,
-            RealtimeEventPublisher realtimeEventPublisher) {
+            RealtimeEventPublisher realtimeEventPublisher,
+            ApplicationMetrics applicationMetrics,
+            ApplicationObservations applicationObservations) {
         this.roomRepository = roomRepository;
         this.roomParticipantRepository = roomParticipantRepository;
         this.userRepository = userRepository;
@@ -59,10 +67,21 @@ public class RoomService {
         this.entitlementService = entitlementService;
         this.roomCodeGenerator = roomCodeGenerator;
         this.realtimeEventPublisher = realtimeEventPublisher;
+        this.applicationMetrics = applicationMetrics;
+        this.applicationObservations = applicationObservations;
     }
 
     @Transactional
     public RoomResponse createRoom(UUID userId, CreateRoomRequest request) {
+        return applicationObservations.observe(
+                "room.create",
+                () -> createRoomObserved(userId, request),
+                KeyValue.of("writing_style", request.writingStyle().name().toLowerCase()),
+                KeyValue.of("language", request.language().toLowerCase()),
+                KeyValue.of("safety_mode", request.safetyMode().name().toLowerCase()));
+    }
+
+    private RoomResponse createRoomObserved(UUID userId, CreateRoomRequest request) {
         User host = requireActiveUser(userId);
         assertWithinPlanLimit(userId, request.maxPlayers());
 
@@ -78,6 +97,7 @@ public class RoomService {
                 request.turnTimeoutSeconds(),
                 request.visibility()));
         roomParticipantRepository.save(new RoomParticipant(room, host, RoomParticipantRole.HOST));
+        applicationMetrics.recordRoomCreated(room.getWritingStyle(), room.getLanguage(), room.getSafetyMode());
         return response(room);
     }
 
@@ -119,6 +139,12 @@ public class RoomService {
 
     @Transactional
     public RoomResponse joinRoom(UUID userId, String roomCode) {
+        return applicationObservations.observe(
+                "room.join",
+                () -> joinRoomObserved(userId, roomCode));
+    }
+
+    private RoomResponse joinRoomObserved(UUID userId, String roomCode) {
         User user = requireActiveUser(userId);
         Room room = roomRepository.findByRoomCodeIgnoreCase(roomCode)
                 .orElseThrow(() -> new ApiException(ErrorCode.ROOM_NOT_FOUND, HttpStatus.NOT_FOUND,

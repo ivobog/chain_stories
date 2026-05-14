@@ -41,7 +41,12 @@ public class SecurityConfig {
                                 "/api/v1/auth/password-reset/request",
                                 "/api/v1/auth/password-reset/confirm").permitAll()
                         .requestMatchers("/ws/game/**").permitAll()
-                        .requestMatchers("/actuator/health", "/actuator/info", "/api/v1/status").permitAll()
+                        .requestMatchers(
+                                "/actuator/health",
+                                "/actuator/health/**",
+                                "/actuator/info",
+                                "/api/v1/status").permitAll()
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(authenticationEntryPoint)

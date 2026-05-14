@@ -24,3 +24,9 @@ docker compose down
 ```
 
 The named Docker volumes are `postgres-data` and `redis-data`.
+
+To run the backend in Docker as well:
+
+```powershell
+docker compose --profile app up -d --build backend
+```

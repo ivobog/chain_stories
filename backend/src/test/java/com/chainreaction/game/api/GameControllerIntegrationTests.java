@@ -27,6 +27,9 @@ import com.chainreaction.ai.AiGenerationAttemptStatus;
 import com.chainreaction.ai.AiGenerationAttemptRepository;
 import com.chainreaction.ai.WordSuggestionEventRepository;
 import com.chainreaction.auth.api.AuthResponse;
+import com.chainreaction.moderation.ModerationEventOutcome;
+import com.chainreaction.moderation.ModerationEventRepository;
+import com.chainreaction.moderation.ModerationEventSource;
 import com.chainreaction.room.domain.WritingStyle;
 import com.chainreaction.vote.VoteCategory;
 import com.chainreaction.vote.VoteRepository;
@@ -62,6 +65,9 @@ class GameControllerIntegrationTests {
 
     @Autowired
     private VoteResultRepository voteResultRepository;
+
+    @Autowired
+    private ModerationEventRepository moderationEventRepository;
 
     @Test
     void hostCanStartGameAndPlayersCanFetchState() throws Exception {
@@ -326,6 +332,34 @@ class GameControllerIntegrationTests {
     }
 
     @Test
+    void submitWordAttemptsAreRateLimited() throws Exception {
+        AuthResponse host = register("host-submit-limit-" + UUID.randomUUID() + "@example.com", "Host");
+        AuthResponse player = register("player-submit-limit-" + UUID.randomUUID() + "@example.com", "Player");
+
+        StartedGame started = startTwoPlayerGame(host, player, 10);
+
+        for (int request = 0; request < 5; request++) {
+            mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/turns/" + started.turnId() + "/submit-word")
+                            .header("Authorization", "Bearer " + host.accessToken())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(Map.of("word", "two words"))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errorCode", equalTo("VALIDATION_FAILED")));
+        }
+
+        mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/turns/" + started.turnId() + "/submit-word")
+                        .header("Authorization", "Bearer " + host.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("word", "two words"))))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.errorCode", equalTo("RATE_LIMITED")));
+
+        org.assertj.core.api.Assertions.assertThat(
+                aiGenerationAttemptRepository.findAllByGameIdOrderByCreatedAtAsc(UUID.fromString(started.gameId())))
+                .isEmpty();
+    }
+
+    @Test
     void reconnectedParticipantCanFetchFullCurrentStoryStateAfterMissedTurnEvents() throws Exception {
         AuthResponse host = register("host-reconnect-" + UUID.randomUUID() + "@example.com", "Host");
         AuthResponse player = register("player-reconnect-" + UUID.randomUUID() + "@example.com", "Player");
@@ -405,6 +439,61 @@ class GameControllerIntegrationTests {
         org.assertj.core.api.Assertions.assertThat(
                 wordRegistryEntryRepository.findAllByGameIdOrderByCreatedAtAsc(UUID.fromString(started.gameId())))
                 .isEmpty();
+    }
+
+    @Test
+    void blockedSubmittedWordCreatesModerationAuditEvent() throws Exception {
+        AuthResponse host = register("host-moderation-" + UUID.randomUUID() + "@example.com", "Host");
+        AuthResponse player = register("player-moderation-" + UUID.randomUUID() + "@example.com", "Player");
+
+        StartedGame started = startTwoPlayerGame(host, player, 10);
+
+        mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/turns/" + started.turnId() + "/submit-word")
+                        .header("Authorization", "Bearer " + host.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("word", "murder"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode", equalTo("VALIDATION_FAILED")));
+
+        var events = moderationEventRepository.findAllByGameIdOrderByCreatedAtAsc(UUID.fromString(started.gameId()));
+        org.assertj.core.api.Assertions.assertThat(events).hasSize(1);
+        org.assertj.core.api.Assertions.assertThat(events.get(0).getSource()).isEqualTo(ModerationEventSource.SUBMITTED_WORD);
+        org.assertj.core.api.Assertions.assertThat(events.get(0).getOutcome()).isEqualTo(ModerationEventOutcome.BLOCKED);
+        org.assertj.core.api.Assertions.assertThat(events.get(0).getTurnId()).isEqualTo(UUID.fromString(started.turnId()));
+        org.assertj.core.api.Assertions.assertThat(events.get(0).getPlayerUserId()).isEqualTo(host.userId());
+        org.assertj.core.api.Assertions.assertThat(events.get(0).getReason())
+                .isEqualTo("Submitted word is not allowed for this room.");
+        org.assertj.core.api.Assertions.assertThat(events.get(0).getContentExcerpt()).isEqualTo("murder");
+    }
+
+    @Test
+    void adminCanReviewModerationEvents() throws Exception {
+        AuthResponse host = register("host-admin-moderation-" + UUID.randomUUID() + "@example.com", "Host");
+        AuthResponse player = register("player-admin-moderation-" + UUID.randomUUID() + "@example.com", "Player");
+
+        StartedGame started = startTwoPlayerGame(host, player, 10);
+
+        mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/turns/" + started.turnId() + "/submit-word")
+                        .header("Authorization", "Bearer " + host.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("word", "murder"))))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(get("/api/v1/admin/moderation/events")
+                        .header("Authorization", "Bearer " + host.accessToken()))
+                .andExpect(status().isForbidden());
+
+        jdbcTemplate.update("UPDATE users SET role = 'ROLE_ADMIN' WHERE id = ?", host.userId());
+
+        mockMvc.perform(get("/api/v1/admin/moderation/events")
+                        .header("Authorization", "Bearer " + host.accessToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].gameId", equalTo(started.gameId())))
+                .andExpect(jsonPath("$[0].turnId", equalTo(started.turnId())))
+                .andExpect(jsonPath("$[0].playerUserId", equalTo(host.userId().toString())))
+                .andExpect(jsonPath("$[0].source", equalTo("SUBMITTED_WORD")))
+                .andExpect(jsonPath("$[0].outcome", equalTo("BLOCKED")))
+                .andExpect(jsonPath("$[0].reason", equalTo("Submitted word is not allowed for this room.")));
     }
 
     @Test

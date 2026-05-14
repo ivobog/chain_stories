@@ -25,4 +25,19 @@ class StatusControllerTests {
                 .andExpect(jsonPath("$.service", equalTo("chain-stories-backend")))
                 .andExpect(jsonPath("$.status", equalTo("ok")));
     }
+
+    @Test
+    void actuatorHealthProbesArePublic() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", equalTo("UP")));
+
+        mockMvc.perform(get("/actuator/health/liveness"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", equalTo("UP")));
+
+        mockMvc.perform(get("/actuator/health/readiness"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", equalTo("UP")));
+    }
 }

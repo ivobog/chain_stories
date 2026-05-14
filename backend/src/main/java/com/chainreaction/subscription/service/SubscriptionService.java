@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.chainreaction.common.error.ApiException;
 import com.chainreaction.common.error.ErrorCode;
+import com.chainreaction.observability.ApplicationMetrics;
 import com.chainreaction.subscription.api.MockPurchaseRequest;
 import com.chainreaction.subscription.api.EntitlementFeatures;
 import com.chainreaction.subscription.api.SubscriptionResponse;
@@ -28,16 +29,19 @@ public class SubscriptionService {
     private final SubscriptionRepository subscriptionRepository;
     private final UserRepository userRepository;
     private final PlanLimitService planLimitService;
+    private final ApplicationMetrics applicationMetrics;
     private final boolean mockPurchasesEnabled;
 
     public SubscriptionService(
             SubscriptionRepository subscriptionRepository,
             UserRepository userRepository,
             PlanLimitService planLimitService,
+            ApplicationMetrics applicationMetrics,
             @Value("${app.subscriptions.mock-purchases-enabled:false}") boolean mockPurchasesEnabled) {
         this.subscriptionRepository = subscriptionRepository;
         this.userRepository = userRepository;
         this.planLimitService = planLimitService;
+        this.applicationMetrics = applicationMetrics;
         this.mockPurchasesEnabled = mockPurchasesEnabled;
     }
 
@@ -57,7 +61,9 @@ public class SubscriptionService {
                 request.provider().trim().toLowerCase(),
                 mockProviderSubscriptionId(userId, request),
                 Instant.now().plus(30, ChronoUnit.DAYS));
-        return response(subscriptionRepository.save(subscription));
+        Subscription saved = subscriptionRepository.save(subscription);
+        applicationMetrics.recordSubscriptionUpgrade(request.plan());
+        return response(saved);
     }
 
     @Transactional(readOnly = true)

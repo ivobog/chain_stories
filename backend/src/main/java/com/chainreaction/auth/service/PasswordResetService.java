@@ -30,6 +30,7 @@ public class PasswordResetService {
     private final TokenHashService tokenHashService;
     private final AuthEventService authEventService;
     private final RefreshTokenService refreshTokenService;
+    private final AuthRateLimiter authRateLimiter;
     private final long passwordResetTokenTtlMinutes;
 
     public PasswordResetService(
@@ -39,6 +40,7 @@ public class PasswordResetService {
             TokenHashService tokenHashService,
             AuthEventService authEventService,
             RefreshTokenService refreshTokenService,
+            AuthRateLimiter authRateLimiter,
             @Value("${app.security.jwt.password-reset-token-ttl-minutes}") long passwordResetTokenTtlMinutes) {
         this.userRepository = userRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
@@ -46,12 +48,14 @@ public class PasswordResetService {
         this.tokenHashService = tokenHashService;
         this.authEventService = authEventService;
         this.refreshTokenService = refreshTokenService;
+        this.authRateLimiter = authRateLimiter;
         this.passwordResetTokenTtlMinutes = passwordResetTokenTtlMinutes;
     }
 
     @Transactional
     public PasswordResetResponse requestReset(PasswordResetRequest request) {
         String normalizedEmail = normalizeEmail(request.email());
+        authRateLimiter.checkPasswordResetRequestAllowed(normalizedEmail);
         Optional<User> user = userRepository.findByEmailIgnoreCase(normalizedEmail)
                 .filter(User::isActive);
 
@@ -73,7 +77,9 @@ public class PasswordResetService {
 
     @Transactional
     public void confirmReset(PasswordResetConfirmRequest request) {
-        PasswordResetToken resetToken = passwordResetTokenRepository.findByTokenHash(tokenHashService.hash(request.resetToken()))
+        String tokenHash = tokenHashService.hash(request.resetToken());
+        authRateLimiter.checkPasswordResetConfirmAllowed(tokenHash);
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByTokenHash(tokenHash)
                 .orElseThrow(this::invalidResetToken);
         if (!resetToken.isUsable(Instant.now()) || !resetToken.getUser().isActive()) {
             throw invalidResetToken();

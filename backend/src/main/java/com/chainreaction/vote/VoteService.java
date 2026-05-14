@@ -18,6 +18,8 @@ import com.chainreaction.game.domain.GameStatus;
 import com.chainreaction.game.domain.StorySegment;
 import com.chainreaction.game.repository.GameRepository;
 import com.chainreaction.game.repository.StorySegmentRepository;
+import com.chainreaction.observability.ApplicationMetrics;
+import com.chainreaction.observability.ApplicationObservations;
 import com.chainreaction.realtime.api.RealtimeEventType;
 import com.chainreaction.realtime.service.RealtimeEventPublisher;
 import com.chainreaction.room.domain.RoomParticipant;
@@ -38,6 +40,8 @@ public class VoteService {
     private final StorySegmentRepository storySegmentRepository;
     private final RoomParticipantRepository roomParticipantRepository;
     private final RealtimeEventPublisher realtimeEventPublisher;
+    private final ApplicationMetrics applicationMetrics;
+    private final ApplicationObservations applicationObservations;
 
     public VoteService(
             VoteRepository voteRepository,
@@ -45,17 +49,27 @@ public class VoteService {
             GameRepository gameRepository,
             StorySegmentRepository storySegmentRepository,
             RoomParticipantRepository roomParticipantRepository,
-            RealtimeEventPublisher realtimeEventPublisher) {
+            RealtimeEventPublisher realtimeEventPublisher,
+            ApplicationMetrics applicationMetrics,
+            ApplicationObservations applicationObservations) {
         this.voteRepository = voteRepository;
         this.voteResultRepository = voteResultRepository;
         this.gameRepository = gameRepository;
         this.storySegmentRepository = storySegmentRepository;
         this.roomParticipantRepository = roomParticipantRepository;
         this.realtimeEventPublisher = realtimeEventPublisher;
+        this.applicationMetrics = applicationMetrics;
+        this.applicationObservations = applicationObservations;
     }
 
     @Transactional
     public VoteResponse submitVote(UUID userId, UUID gameId, SubmitVoteRequest request) {
+        return applicationObservations.observe(
+                "vote.submit",
+                () -> submitVoteObserved(userId, gameId, request));
+    }
+
+    private VoteResponse submitVoteObserved(UUID userId, UUID gameId, SubmitVoteRequest request) {
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new ApiException(ErrorCode.GAME_NOT_FOUND, HttpStatus.NOT_FOUND,
                         "Game does not exist."));
@@ -189,6 +203,7 @@ public class VoteService {
         }
 
         game.finish();
+        applicationMetrics.recordGameFinished();
         realtimeEventPublisher.publishGameEvent(
                 game.getRoom().getId(),
                 game.getId(),
