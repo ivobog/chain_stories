@@ -100,4 +100,4 @@ Word registry prompt memory is bounded by `WORD_REGISTRY_RECENT_WINDOW_DAYS`; in
 
 ## Current Phase
 
-Phase 6 in progress: Word Registry and anti-repetition. Accepted submitted words are now recorded in a durable word registry with their generated sentence, style, language, player, turn, room, and game context; recent same-room/word/style/language usages are included in prompts, overly similar generated output is rejected and retried, and the registry retention/pruning strategy is documented.
+Phase 7 in progress: Random Word Suggestion. Current active players can request a safe style-aware word suggestion during their turn, successful suggestions are recorded for analytics, random-word requests are rate-limited, and the backend still validates any final submitted word through the normal moderation and story-generation flow.

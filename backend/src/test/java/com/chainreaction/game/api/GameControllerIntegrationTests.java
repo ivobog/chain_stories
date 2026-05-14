@@ -24,6 +24,7 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import com.chainreaction.ai.AiGenerationAttemptStatus;
 import com.chainreaction.ai.AiGenerationAttemptRepository;
+import com.chainreaction.ai.WordSuggestionEventRepository;
 import com.chainreaction.auth.api.AuthResponse;
 import com.chainreaction.room.domain.WritingStyle;
 import com.chainreaction.word.WordRegistryEntryRepository;
@@ -48,6 +49,9 @@ class GameControllerIntegrationTests {
 
     @Autowired
     private WordRegistryEntryRepository wordRegistryEntryRepository;
+
+    @Autowired
+    private WordSuggestionEventRepository wordSuggestionEventRepository;
 
     @Test
     void hostCanStartGameAndPlayersCanFetchState() throws Exception {
@@ -233,6 +237,69 @@ class GameControllerIntegrationTests {
         org.assertj.core.api.Assertions.assertThat(registryEntries.get(0).getLanguage()).isEqualTo("en");
         org.assertj.core.api.Assertions.assertThat(registryEntries.get(0).getGeneratedSentence())
                 .isEqualTo("The word \"dragon\" pushes the story into a stranger turn.");
+    }
+
+    @Test
+    void currentPlayerCanRequestRandomWordSuggestion() throws Exception {
+        AuthResponse host = register("host-random-word-" + UUID.randomUUID() + "@example.com", "Host");
+        AuthResponse player = register("player-random-word-" + UUID.randomUUID() + "@example.com", "Player");
+
+        StartedGame started = startTwoPlayerGame(host, player, 10);
+
+        MvcResult suggestionResult = mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/random-word")
+                        .header("Authorization", "Bearer " + host.accessToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.word", not(blankOrNullString())))
+                .andExpect(jsonPath("$.normalizedWord", not(blankOrNullString())))
+                .andExpect(jsonPath("$.safetyLevel", equalTo("TEEN")))
+                .andExpect(jsonPath("$.writingStyle", equalTo("FUNNY")))
+                .andExpect(jsonPath("$.language", equalTo("en")))
+                .andReturn();
+
+        Map<String, Object> suggestion = responseBody(suggestionResult);
+        var events = wordSuggestionEventRepository.findAllByGameIdOrderByCreatedAtAsc(UUID.fromString(started.gameId()));
+        org.assertj.core.api.Assertions.assertThat(events).hasSize(1);
+        org.assertj.core.api.Assertions.assertThat(events.get(0).getTurnId()).isEqualTo(UUID.fromString(started.turnId()));
+        org.assertj.core.api.Assertions.assertThat(events.get(0).getPlayerUserId()).isEqualTo(host.userId());
+        org.assertj.core.api.Assertions.assertThat(events.get(0).getSuggestedWord()).isEqualTo(suggestion.get("word"));
+        org.assertj.core.api.Assertions.assertThat(events.get(0).getNormalizedWord()).isEqualTo(suggestion.get("normalizedWord"));
+        org.assertj.core.api.Assertions.assertThat(events.get(0).getWritingStyle()).isEqualTo(WritingStyle.FUNNY);
+        org.assertj.core.api.Assertions.assertThat(events.get(0).getLanguage()).isEqualTo("en");
+        org.assertj.core.api.Assertions.assertThat(events.get(0).getSafetyLevel()).isEqualTo("TEEN");
+        org.assertj.core.api.Assertions.assertThat(events.get(0).getCurrentStoryCharacters()).isPositive();
+        org.assertj.core.api.Assertions.assertThat(events.get(0).getPreviousWordsCount()).isZero();
+
+        mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/random-word")
+                        .header("Authorization", "Bearer " + player.accessToken()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode", equalTo("ACCESS_DENIED")));
+
+        org.assertj.core.api.Assertions.assertThat(
+                wordSuggestionEventRepository.findAllByGameIdOrderByCreatedAtAsc(UUID.fromString(started.gameId())))
+                .hasSize(1);
+    }
+
+    @Test
+    void randomWordSuggestionIsRateLimited() throws Exception {
+        AuthResponse host = register("host-random-limit-" + UUID.randomUUID() + "@example.com", "Host");
+        AuthResponse player = register("player-random-limit-" + UUID.randomUUID() + "@example.com", "Player");
+
+        StartedGame started = startTwoPlayerGame(host, player, 10);
+
+        for (int request = 0; request < 3; request++) {
+            mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/random-word")
+                            .header("Authorization", "Bearer " + host.accessToken()))
+                    .andExpect(status().isOk());
+        }
+
+        mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/random-word")
+                        .header("Authorization", "Bearer " + host.accessToken()))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.errorCode", equalTo("RATE_LIMITED")));
+
+        org.assertj.core.api.Assertions.assertThat(
+                wordSuggestionEventRepository.findAllByGameIdOrderByCreatedAtAsc(UUID.fromString(started.gameId())))
+                .hasSize(3);
     }
 
     @Test

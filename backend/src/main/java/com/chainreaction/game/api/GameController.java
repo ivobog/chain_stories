@@ -55,4 +55,11 @@ public class GameController {
             @PathVariable UUID turnId) {
         return gameService.skipExpiredTurn(principal.getUserId(), gameId, turnId);
     }
+
+    @PostMapping("/games/{gameId}/random-word")
+    public RandomWordSuggestionResponse randomWord(
+            @AuthenticationPrincipal CurrentUserPrincipal principal,
+            @PathVariable UUID gameId) {
+        return gameService.randomWord(principal.getUserId(), gameId);
+    }
 }

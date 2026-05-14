@@ -658,6 +658,27 @@ Exit criteria:
 
 - Current player can request a safe word suggestion during their turn.
 
+Implemented first slice:
+
+- Added `POST /api/v1/games/{gameId}/random-word`.
+- Current active turn player can request one suggested word; non-current participants are rejected.
+- Suggestions use curated style-aware candidate pools, room language/safety context, current story text, and previously accepted words for the game.
+- Added a word suggestion prompt builder that captures style, language, safety mode, previous words, and current story context for the future AI suggestion provider contract.
+- Suggested words are passed through the same one-word moderation path used by submitted words.
+- Unsafe candidate suggestions are skipped before a response is returned.
+- Response returns the client-visible word, normalized word, safety level, writing style, and language.
+- Successful suggestions are recorded in `word_suggestion_events` with game, room, turn, player, word, style, language, safety level, story length, previous-word count, and timestamp.
+- Random-word requests are rate-limited per player/game with configurable `AI_SUGGESTION_RATE_LIMIT_PER_WINDOW` and `AI_SUGGESTION_RATE_LIMIT_WINDOW_SECONDS`.
+
+Testing implemented:
+
+- Word suggestion service unit coverage confirms style-aware safe suggestions, previous-word exclusion, and unsafe candidate skipping.
+- Word suggestion prompt builder unit coverage confirms suggestion context and empty-memory labeling.
+- Word suggestion rate limiter unit coverage confirms request limits and independent player/game buckets.
+- Game integration coverage confirms the current player can request a random word and non-current players cannot.
+- Game integration coverage confirms successful suggestions create one analytics row and rejected non-current requests do not create extra rows.
+- Game integration coverage confirms rate-limited requests return `RATE_LIMITED` and do not create analytics rows.
+
 ### Phase 8: Voting and Results
 
 Goal: complete the gameplay loop.

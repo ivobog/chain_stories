@@ -62,4 +62,11 @@ public class WordRegistryService {
                 .map(entry -> new PreviousWordUsage(entry.getGeneratedSentence()))
                 .toList();
     }
+
+    public List<String> acceptedWordsForGame(UUID gameId) {
+        return repository.findAllByGameIdOrderByCreatedAtAsc(gameId)
+                .stream()
+                .map(WordRegistryEntry::getNormalizedWord)
+                .toList();
+    }
 }

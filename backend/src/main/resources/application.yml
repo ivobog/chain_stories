@@ -34,6 +34,9 @@ app:
     provider: ${AI_PROVIDER:mock}
     generation:
       max-attempts: ${AI_GENERATION_MAX_ATTEMPTS:3}
+    suggestions:
+      rate-limit-per-window: ${AI_SUGGESTION_RATE_LIMIT_PER_WINDOW:3}
+      rate-limit-window-seconds: ${AI_SUGGESTION_RATE_LIMIT_WINDOW_SECONDS:60}
     mock:
       model: ${AI_MOCK_MODEL:mock-story-v1}
     openai:

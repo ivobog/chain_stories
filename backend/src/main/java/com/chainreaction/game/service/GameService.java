@@ -10,10 +10,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.chainreaction.ai.StoryGenerationResult;
 import com.chainreaction.ai.StoryGenerationService;
+import com.chainreaction.ai.WordSuggestionRequest;
+import com.chainreaction.ai.WordSuggestionAnalyticsService;
+import com.chainreaction.ai.WordSuggestionRateLimiter;
+import com.chainreaction.ai.WordSuggestionResult;
+import com.chainreaction.ai.WordSuggestionService;
 import com.chainreaction.common.error.ApiException;
 import com.chainreaction.common.error.ErrorCode;
 import com.chainreaction.game.api.GameResponse;
 import com.chainreaction.game.api.GameTurnResponse;
+import com.chainreaction.game.api.RandomWordSuggestionResponse;
 import com.chainreaction.game.api.SubmitWordRequest;
 import com.chainreaction.game.api.StorySegmentResponse;
 import com.chainreaction.game.domain.Game;
@@ -50,6 +56,9 @@ public class GameService {
     private final RoomParticipantRepository roomParticipantRepository;
     private final RealtimeEventPublisher realtimeEventPublisher;
     private final StoryGenerationService storyGenerationService;
+    private final WordSuggestionService wordSuggestionService;
+    private final WordSuggestionAnalyticsService wordSuggestionAnalyticsService;
+    private final WordSuggestionRateLimiter wordSuggestionRateLimiter;
     private final WordRegistryService wordRegistryService;
 
     public GameService(
@@ -61,6 +70,9 @@ public class GameService {
             RoomParticipantRepository roomParticipantRepository,
             RealtimeEventPublisher realtimeEventPublisher,
             StoryGenerationService storyGenerationService,
+            WordSuggestionService wordSuggestionService,
+            WordSuggestionAnalyticsService wordSuggestionAnalyticsService,
+            WordSuggestionRateLimiter wordSuggestionRateLimiter,
             WordRegistryService wordRegistryService) {
         this.gameRepository = gameRepository;
         this.gameTurnRepository = gameTurnRepository;
@@ -70,6 +82,9 @@ public class GameService {
         this.roomParticipantRepository = roomParticipantRepository;
         this.realtimeEventPublisher = realtimeEventPublisher;
         this.storyGenerationService = storyGenerationService;
+        this.wordSuggestionService = wordSuggestionService;
+        this.wordSuggestionAnalyticsService = wordSuggestionAnalyticsService;
+        this.wordSuggestionRateLimiter = wordSuggestionRateLimiter;
         this.wordRegistryService = wordRegistryService;
     }
 
@@ -172,6 +187,50 @@ public class GameService {
         publishGameEvent(game, RealtimeEventType.TURN_SKIPPED, result);
         publishAfterTurnAdvance(game, result);
         return result;
+    }
+
+    @Transactional
+    public RandomWordSuggestionResponse randomWord(UUID userId, UUID gameId) {
+        Game game = requireActiveGame(gameId);
+        requireActiveParticipant(game.getRoom().getId(), userId);
+        GameTurn turn = gameTurnRepository.findByGameIdAndTurnNumber(gameId, game.getCurrentTurnNumber())
+                .orElseThrow(() -> new ApiException(ErrorCode.TURN_NOT_FOUND, HttpStatus.NOT_FOUND,
+                        "Current turn does not exist."));
+        if (turn.getStatus() != GameTurnStatus.ACTIVE) {
+            throw new ApiException(ErrorCode.TURN_NOT_ACTIVE, HttpStatus.CONFLICT,
+                    "Turn is not active.");
+        }
+        if (!turn.getPlayer().getId().equals(userId)) {
+            throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN,
+                    "Only the current player can request a random word.");
+        }
+        wordSuggestionRateLimiter.checkAllowed(userId, gameId);
+
+        Story story = storyRepository.findByGameId(gameId)
+                .orElseThrow(() -> new ApiException(ErrorCode.GAME_NOT_FOUND, HttpStatus.NOT_FOUND,
+                        "Story does not exist."));
+        String currentStory = fullStory(story.getId());
+        List<String> previousWords = wordRegistryService.acceptedWordsForGame(gameId);
+        WordSuggestionResult suggestion = wordSuggestionService.suggest(new WordSuggestionRequest(
+                game.getRoom().getWritingStyle(),
+                game.getRoom().getLanguage(),
+                game.getRoom().getSafetyMode(),
+                currentStory,
+                previousWords));
+        wordSuggestionAnalyticsService.recordSuggestion(
+                game.getId(),
+                game.getRoom().getId(),
+                turn.getId(),
+                turn.getPlayer().getId(),
+                suggestion,
+                game.getRoom().getWritingStyle(),
+                game.getRoom().getLanguage(),
+                currentStory,
+                previousWords.size());
+        return RandomWordSuggestionResponse.from(
+                suggestion,
+                game.getRoom().getWritingStyle(),
+                game.getRoom().getLanguage());
     }
 
     private GameResponse advanceAfterTurn(Game game, GameTurn turn) {
