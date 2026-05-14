@@ -12,5 +12,7 @@ public enum RealtimeEventType {
     STORY_SEGMENT_ADDED,
     TURN_SKIPPED,
     VOTING_STARTED,
+    VOTE_RESULTS_UPDATED,
+    GAME_FINISHED,
     ERROR_EVENT
 }

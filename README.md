@@ -100,4 +100,4 @@ Word registry prompt memory is bounded by `WORD_REGISTRY_RECENT_WINDOW_DAYS`; in
 
 ## Current Phase
 
-Phase 7 in progress: Random Word Suggestion. Current active players can request a safe style-aware word suggestion during their turn, successful suggestions are recorded for analytics, random-word requests are rate-limited, and the backend still validates any final submitted word through the normal moderation and story-generation flow.
+Phase 8 in progress: Voting and Results. Games move to voting after the turn limit, accept one persisted vote per category, persist and broadcast result projections, and finish once every active participant has completed all categories.

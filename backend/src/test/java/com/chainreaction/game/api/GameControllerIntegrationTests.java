@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -27,6 +28,9 @@ import com.chainreaction.ai.AiGenerationAttemptRepository;
 import com.chainreaction.ai.WordSuggestionEventRepository;
 import com.chainreaction.auth.api.AuthResponse;
 import com.chainreaction.room.domain.WritingStyle;
+import com.chainreaction.vote.VoteCategory;
+import com.chainreaction.vote.VoteRepository;
+import com.chainreaction.vote.VoteResultRepository;
 import com.chainreaction.word.WordRegistryEntryRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -52,6 +56,12 @@ class GameControllerIntegrationTests {
 
     @Autowired
     private WordSuggestionEventRepository wordSuggestionEventRepository;
+
+    @Autowired
+    private VoteRepository voteRepository;
+
+    @Autowired
+    private VoteResultRepository voteResultRepository;
 
     @Test
     void hostCanStartGameAndPlayersCanFetchState() throws Exception {
@@ -426,6 +436,141 @@ class GameControllerIntegrationTests {
     }
 
     @Test
+    void playersCanVoteOncePerCategoryWhenGameIsInVoting() throws Exception {
+        AuthResponse host = register("host-vote-" + UUID.randomUUID() + "@example.com", "Host");
+        AuthResponse player = register("player-vote-" + UUID.randomUUID() + "@example.com", "Player");
+
+        StartedGame started = startTwoPlayerGame(host, player, 2);
+
+        mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/votes")
+                        .header("Authorization", "Bearer " + host.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "category", "MVP_PLAYER",
+                                "targetUserId", player.userId().toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode", equalTo("VOTING_NOT_OPEN")));
+
+        MvcResult firstSubmit = mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/turns/" + started.turnId() + "/submit-word")
+                        .header("Authorization", "Bearer " + host.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("word", "spark"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        String secondTurnId = (String) responseBody(firstSubmit, "currentTurn").get("turnId");
+
+        MvcResult votingResult = mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/turns/" + secondTurnId + "/submit-word")
+                        .header("Authorization", "Bearer " + player.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("word", "moon"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", equalTo("VOTING")))
+                .andReturn();
+        String firstPlayableSegmentId = storySegmentId(votingResult, 1);
+        String secondPlayableSegmentId = storySegmentId(votingResult, 2);
+
+        mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/votes")
+                        .header("Authorization", "Bearer " + host.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "category", "FUNNIEST_WORD",
+                                "targetStorySegmentId", firstPlayableSegmentId))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.gameId", equalTo(started.gameId())))
+                .andExpect(jsonPath("$.voterUserId", equalTo(host.userId().toString())))
+                .andExpect(jsonPath("$.category", equalTo("FUNNIEST_WORD")))
+                .andExpect(jsonPath("$.targetStorySegmentId", equalTo(firstPlayableSegmentId)))
+                .andExpect(jsonPath("$.targetUserId", nullValue()));
+
+        mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/votes")
+                        .header("Authorization", "Bearer " + host.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "category", "FUNNIEST_WORD",
+                                "targetStorySegmentId", firstPlayableSegmentId))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode", equalTo("DUPLICATE_VOTE")));
+
+        mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/votes")
+                        .header("Authorization", "Bearer " + host.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "category", "MVP_PLAYER",
+                                "targetUserId", player.userId().toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.category", equalTo("MVP_PLAYER")))
+                .andExpect(jsonPath("$.targetUserId", equalTo(player.userId().toString())))
+                .andExpect(jsonPath("$.targetStorySegmentId", nullValue()));
+
+        var votes = voteRepository.findAllByGameIdOrderByCreatedAtAsc(UUID.fromString(started.gameId()));
+        org.assertj.core.api.Assertions.assertThat(votes).hasSize(2);
+        org.assertj.core.api.Assertions.assertThat(votes)
+                .extracting(vote -> vote.getCategory())
+                .containsExactly(VoteCategory.FUNNIEST_WORD, VoteCategory.MVP_PLAYER);
+
+        var persistedResults = voteResultRepository.findAllByGameIdOrderByCategoryAscResultRankAsc(UUID.fromString(started.gameId()));
+        org.assertj.core.api.Assertions.assertThat(persistedResults).hasSize(2);
+        org.assertj.core.api.Assertions.assertThat(persistedResults)
+                .extracting(result -> result.getCategory())
+                .containsExactly(VoteCategory.FUNNIEST_WORD, VoteCategory.MVP_PLAYER);
+        org.assertj.core.api.Assertions.assertThat(persistedResults.get(0).getTargetStorySegmentId())
+                .isEqualTo(UUID.fromString(firstPlayableSegmentId));
+        org.assertj.core.api.Assertions.assertThat(persistedResults.get(0).getVoteCount()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(persistedResults.get(1).getTargetUserId()).isEqualTo(player.userId());
+        org.assertj.core.api.Assertions.assertThat(persistedResults.get(1).getVoteCount()).isEqualTo(1);
+
+        mockMvc.perform(get("/api/v1/games/" + started.gameId() + "/votes/results")
+                        .header("Authorization", "Bearer " + player.accessToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.gameId", equalTo(started.gameId())))
+                .andExpect(jsonPath("$.categories.length()", equalTo(5)))
+                .andExpect(jsonPath("$.categories[0].category", equalTo("FUNNIEST_WORD")))
+                .andExpect(jsonPath("$.categories[0].results.length()", equalTo(1)))
+                .andExpect(jsonPath("$.categories[0].results[0].targetStorySegmentId", equalTo(firstPlayableSegmentId)))
+                .andExpect(jsonPath("$.categories[0].results[0].targetUserId", nullValue()))
+                .andExpect(jsonPath("$.categories[0].results[0].voteCount", equalTo(1)))
+                .andExpect(jsonPath("$.categories[4].category", equalTo("MVP_PLAYER")))
+                .andExpect(jsonPath("$.categories[4].results.length()", equalTo(1)))
+                .andExpect(jsonPath("$.categories[4].results[0].targetUserId", equalTo(player.userId().toString())))
+                .andExpect(jsonPath("$.categories[4].results[0].targetStorySegmentId", nullValue()))
+                .andExpect(jsonPath("$.categories[4].results[0].voteCount", equalTo(1)));
+
+        submitStoryVote(host, started.gameId(), VoteCategory.WEIRDEST_TWIST, firstPlayableSegmentId);
+        submitStoryVote(host, started.gameId(), VoteCategory.BEST_AI_SENTENCE, secondPlayableSegmentId);
+        submitPlayerVote(host, started.gameId(), VoteCategory.BEST_SABOTAGE, player.userId());
+        submitStoryVote(player, started.gameId(), VoteCategory.FUNNIEST_WORD, secondPlayableSegmentId);
+        submitStoryVote(player, started.gameId(), VoteCategory.WEIRDEST_TWIST, firstPlayableSegmentId);
+        submitStoryVote(player, started.gameId(), VoteCategory.BEST_AI_SENTENCE, secondPlayableSegmentId);
+        submitPlayerVote(player, started.gameId(), VoteCategory.BEST_SABOTAGE, host.userId());
+        submitPlayerVote(player, started.gameId(), VoteCategory.MVP_PLAYER, host.userId());
+
+        org.assertj.core.api.Assertions.assertThat(voteRepository.countByGameId(UUID.fromString(started.gameId())))
+                .isEqualTo(10);
+        mockMvc.perform(get("/api/v1/games/" + started.gameId())
+                        .header("Authorization", "Bearer " + host.accessToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", equalTo("FINISHED")));
+
+        mockMvc.perform(get("/api/v1/games/" + started.gameId() + "/votes/results")
+                        .header("Authorization", "Bearer " + player.accessToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.gameId", equalTo(started.gameId())))
+                .andExpect(jsonPath("$.categories[0].results.length()", equalTo(2)))
+                .andExpect(jsonPath("$.categories[0].results[0].voteCount", equalTo(1)))
+                .andExpect(jsonPath("$.categories[1].results.length()", equalTo(2)))
+                .andExpect(jsonPath("$.categories[4].results.length()", equalTo(2)));
+
+        mockMvc.perform(post("/api/v1/games/" + started.gameId() + "/votes")
+                        .header("Authorization", "Bearer " + player.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "category", "MVP_PLAYER",
+                                "targetUserId", player.userId().toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode", equalTo("VOTING_NOT_OPEN")));
+    }
+
+    @Test
     void expiredTurnCanBeSkippedAndAdvancesTurnOrder() throws Exception {
         AuthResponse host = register("host-skip-" + UUID.randomUUID() + "@example.com", "Host");
         AuthResponse player = register("player-skip-" + UUID.randomUUID() + "@example.com", "Player");
@@ -525,6 +670,32 @@ class GameControllerIntegrationTests {
     @SuppressWarnings("unchecked")
     private Map<String, Object> responseBody(MvcResult result, String field) throws Exception {
         return (Map<String, Object>) responseBody(result).get(field);
+    }
+
+    @SuppressWarnings("unchecked")
+    private String storySegmentId(MvcResult result, int index) throws Exception {
+        List<Map<String, Object>> segments = (List<Map<String, Object>>) responseBody(result).get("storySegments");
+        return (String) segments.get(index).get("segmentId");
+    }
+
+    private void submitStoryVote(AuthResponse voter, String gameId, VoteCategory category, String targetStorySegmentId) throws Exception {
+        mockMvc.perform(post("/api/v1/games/" + gameId + "/votes")
+                        .header("Authorization", "Bearer " + voter.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "category", category.name(),
+                                "targetStorySegmentId", targetStorySegmentId))))
+                .andExpect(status().isOk());
+    }
+
+    private void submitPlayerVote(AuthResponse voter, String gameId, VoteCategory category, UUID targetUserId) throws Exception {
+        mockMvc.perform(post("/api/v1/games/" + gameId + "/votes")
+                        .header("Authorization", "Bearer " + voter.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "category", category.name(),
+                                "targetUserId", targetUserId.toString()))))
+                .andExpect(status().isOk());
     }
 
     private void expireTurn(String turnId) {

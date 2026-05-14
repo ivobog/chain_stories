@@ -447,7 +447,7 @@ Implemented first slice:
 - Realtime publisher defers transactional sends until after successful commit.
 - Room REST mutations publish `PLAYER_JOINED`, `PLAYER_LEFT`, `PLAYER_KICKED`, and `ROOM_CLOSED`.
 - Kicked users receive a private `PLAYER_KICKED` event on `/user/queue/events`.
-- Game REST mutations publish `GAME_STARTED`, `TURN_STARTED`, `WORD_SUBMITTED`, `STORY_SEGMENT_ADDED`, `TURN_SKIPPED`, and `VOTING_STARTED`.
+- Game REST mutations publish `GAME_STARTED`, `TURN_STARTED`, `WORD_SUBMITTED`, `STORY_SEGMENT_ADDED`, `TURN_SKIPPED`, `VOTING_STARTED`, `VOTE_RESULTS_UPDATED`, and `GAME_FINISHED`.
 - Reconnected clients recover complete game, turn, and story state through `GET /api/v1/games/{gameId}`.
 - Mobile now includes typed REST and STOMP WebSocket client modules for auth, room resume, room preview, room lifecycle, game, room-topic, and user-queue flows.
 
@@ -716,6 +716,30 @@ Testing:
 Exit criteria:
 
 - A game can finish with persisted and visible voting results.
+
+Implemented first slice:
+
+- Added `votes` table with one vote per game/player/category.
+- Added vote categories: `FUNNIEST_WORD`, `BEST_SABOTAGE`, `WEIRDEST_TWIST`, `BEST_AI_SENTENCE`, and `MVP_PLAYER`.
+- Added `POST /api/v1/games/{gameId}/votes`.
+- Added `GET /api/v1/games/{gameId}/votes/results`.
+- Voting is accepted only while the game status is `VOTING`.
+- Active room participants can vote once per category.
+- Player-target categories require a player target; story categories require a playable story segment target.
+- Duplicate votes return `DUPLICATE_VOTE`.
+- Vote results aggregate ranked targets per category with vote counts.
+- Vote result projections are persisted after each accepted vote and broadcast to room subscribers.
+- Games move from `VOTING` to `FINISHED` after every active participant has voted in every category.
+- Voting results remain visible after a game is `FINISHED`.
+
+Testing implemented:
+
+- Game integration coverage confirms voting is rejected before `VOTING`.
+- Game integration coverage confirms story-segment and player-target votes are persisted.
+- Game integration coverage confirms duplicate category votes are rejected.
+- Game integration coverage confirms vote results return category aggregates and counts.
+- Game integration coverage confirms calculated vote results are persisted for later reads.
+- Game integration coverage confirms completed voting finishes the game and keeps results visible.
 
 ### Phase 9: Mobile MVP
 

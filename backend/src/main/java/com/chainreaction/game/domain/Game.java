@@ -118,4 +118,8 @@ public class Game {
         this.status = GameStatus.VOTING;
         this.completedAt = Instant.now();
     }
+
+    public void finish() {
+        this.status = GameStatus.FINISHED;
+    }
 }
