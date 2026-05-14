@@ -9,6 +9,7 @@ public class StoryPromptBuilder {
         String systemPrompt = """
                 You extend a shared party story by exactly one sentence.
                 Return structured JSON with sentence, usedWord, tone, intensity, safetyLevel, summary, storyDirection, and tags.
+                Intensity must be an integer from 1 to 5, where 1 is calm and 5 is highly dramatic.
                 Do not rewrite earlier story text. Keep the output safe for the configured safety mode.
                 Use the previous usage context to avoid repeating old jokes, images, or twists.
                 """;

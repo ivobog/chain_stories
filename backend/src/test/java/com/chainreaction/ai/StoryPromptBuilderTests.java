@@ -31,6 +31,19 @@ class StoryPromptBuilderTests {
     }
 
     @Test
+    void explainsIntensityRange() {
+        StoryGenerationPrompt prompt = promptBuilder.build(new StoryGenerationRequest(
+                "dragon",
+                WritingStyle.FUNNY,
+                "en",
+                SafetyMode.TEEN,
+                "The story begins.",
+                List.of()));
+
+        assertThat(prompt.systemPrompt()).contains("Intensity must be an integer from 1 to 5");
+    }
+
+    @Test
     void marksPreviousUsageContextEmptyWhenNoMemoryExists() {
         StoryGenerationPrompt prompt = promptBuilder.build(new StoryGenerationRequest(
                 "dragon",

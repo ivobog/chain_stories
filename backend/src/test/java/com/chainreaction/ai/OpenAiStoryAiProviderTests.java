@@ -7,6 +7,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withBadRequest;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.util.List;
@@ -50,7 +51,16 @@ class OpenAiStoryAiProviderTests {
                             "format": {
                               "type": "json_schema",
                               "name": "story_generation",
-                              "strict": true
+                              "strict": true,
+                              "schema": {
+                                "properties": {
+                                  "intensity": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 5
+                                  }
+                                }
+                              }
                             }
                           }
                         }
@@ -83,6 +93,35 @@ class OpenAiStoryAiProviderTests {
         assertThat(result.promptTokens()).isEqualTo(31);
         assertThat(result.completionTokens()).isEqualTo(18);
         assertThat(result.tags()).containsExactly("dragon", "teacups");
+        server.verify();
+    }
+
+    @Test
+    void includesOpenAiHttpFailureDetails() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        OpenAiStoryAiProvider provider = new OpenAiStoryAiProvider(
+                builder
+                        .baseUrl("https://api.openai.test")
+                        .defaultHeader("Authorization", "Bearer test-key")
+                        .build(),
+                jsonParser,
+                "test-key",
+                "gpt-test");
+
+        server.expect(once(), requestTo("https://api.openai.test/v1/responses"))
+                .andRespond(withBadRequest().body("""
+                        {
+                          "error": {
+                            "message": "Unsupported schema setting."
+                          }
+                        }
+                        """).contentType(MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> provider.generate(prompt(), request()))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("OpenAI provider request failed: HTTP 400")
+                .hasMessageContaining("Unsupported schema setting.");
         server.verify();
     }
 

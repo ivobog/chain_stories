@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 import com.chainreaction.common.error.ApiException;
 import com.chainreaction.common.error.ErrorCode;
@@ -76,8 +77,12 @@ public class OpenAiStoryAiProvider implements StoryAiProvider {
                     .body(requestBody(prompt))
                     .retrieve()
                     .body(JsonNode.class);
+        } catch (RestClientResponseException exception) {
+            throw providerFailure("OpenAI provider request failed: HTTP "
+                    + exception.getStatusCode().value()
+                    + responseErrorMessage(exception.getResponseBodyAsString()));
         } catch (RestClientException exception) {
-            throw providerFailure("OpenAI provider request failed.");
+            throw providerFailure("OpenAI provider request failed: " + exception.getClass().getSimpleName());
         }
         String outputJson = outputText(response);
         if (outputJson == null || outputJson.isBlank()) {
@@ -131,7 +136,10 @@ public class OpenAiStoryAiProvider implements StoryAiProvider {
                         "sentence", Map.of("type", "string"),
                         "usedWord", Map.of("type", "string"),
                         "tone", Map.of("type", "string"),
-                        "intensity", Map.of("type", "integer"),
+                        "intensity", Map.of(
+                                "type", "integer",
+                                "minimum", 1,
+                                "maximum", 5),
                         "safetyLevel", Map.of("type", "string"),
                         "summary", Map.of("type", "string"),
                         "storyDirection", Map.of("type", "string"),
@@ -160,6 +168,15 @@ public class OpenAiStoryAiProvider implements StoryAiProvider {
             }
         }
         return null;
+    }
+
+    private String responseErrorMessage(String responseBody) {
+        if (responseBody == null || responseBody.isBlank()) {
+            return "";
+        }
+        String compact = responseBody.replaceAll("\\s+", " ").trim();
+        int maxLength = 240;
+        return " body=" + compact.substring(0, Math.min(maxLength, compact.length()));
     }
 
     private ApiException providerFailure(String message) {
