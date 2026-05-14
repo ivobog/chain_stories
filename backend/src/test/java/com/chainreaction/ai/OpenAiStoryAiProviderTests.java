@@ -9,6 +9,8 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -145,6 +147,7 @@ class OpenAiStoryAiProviderTests {
                 WritingStyle.FUNNY,
                 "en",
                 SafetyMode.TEEN,
-                "Once upon a kettle.");
+                "Once upon a kettle.",
+                List.of());
     }
 }

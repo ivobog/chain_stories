@@ -25,6 +25,8 @@ import org.springframework.test.web.servlet.ResultActions;
 import com.chainreaction.ai.AiGenerationAttemptStatus;
 import com.chainreaction.ai.AiGenerationAttemptRepository;
 import com.chainreaction.auth.api.AuthResponse;
+import com.chainreaction.room.domain.WritingStyle;
+import com.chainreaction.word.WordRegistryEntryRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -43,6 +45,9 @@ class GameControllerIntegrationTests {
 
     @Autowired
     private AiGenerationAttemptRepository aiGenerationAttemptRepository;
+
+    @Autowired
+    private WordRegistryEntryRepository wordRegistryEntryRepository;
 
     @Test
     void hostCanStartGameAndPlayersCanFetchState() throws Exception {
@@ -218,6 +223,16 @@ class GameControllerIntegrationTests {
         org.assertj.core.api.Assertions.assertThat(attempts.get(0).getModel()).isEqualTo("mock-story-v1");
         org.assertj.core.api.Assertions.assertThat(attempts.get(0).getPromptTokens()).isPositive();
         org.assertj.core.api.Assertions.assertThat(attempts.get(0).getCompletionTokens()).isPositive();
+
+        var registryEntries = wordRegistryEntryRepository.findAllByGameIdOrderByCreatedAtAsc(UUID.fromString(started.gameId()));
+        org.assertj.core.api.Assertions.assertThat(registryEntries).hasSize(1);
+        org.assertj.core.api.Assertions.assertThat(registryEntries.get(0).getTurnId()).isEqualTo(UUID.fromString(started.turnId()));
+        org.assertj.core.api.Assertions.assertThat(registryEntries.get(0).getPlayerUserId()).isEqualTo(host.userId());
+        org.assertj.core.api.Assertions.assertThat(registryEntries.get(0).getNormalizedWord()).isEqualTo("dragon");
+        org.assertj.core.api.Assertions.assertThat(registryEntries.get(0).getWritingStyle()).isEqualTo(WritingStyle.FUNNY);
+        org.assertj.core.api.Assertions.assertThat(registryEntries.get(0).getLanguage()).isEqualTo("en");
+        org.assertj.core.api.Assertions.assertThat(registryEntries.get(0).getGeneratedSentence())
+                .isEqualTo("The word \"dragon\" pushes the story into a stranger turn.");
     }
 
     @Test
@@ -296,6 +311,10 @@ class GameControllerIntegrationTests {
                 .andExpect(jsonPath("$.currentTurn.status", equalTo("ACTIVE")))
                 .andExpect(jsonPath("$.turns.length()", equalTo(1)))
                 .andExpect(jsonPath("$.storySegments.length()", equalTo(1)));
+
+        org.assertj.core.api.Assertions.assertThat(
+                wordRegistryEntryRepository.findAllByGameIdOrderByCreatedAtAsc(UUID.fromString(started.gameId())))
+                .isEmpty();
     }
 
     @Test

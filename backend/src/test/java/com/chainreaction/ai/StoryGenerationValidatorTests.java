@@ -55,7 +55,8 @@ class StoryGenerationValidatorTests {
                 WritingStyle.FUNNY,
                 "en",
                 SafetyMode.TEEN,
-                "The story begins.");
+                "The story begins.",
+                List.of());
         StoryGenerationResult result = new StoryGenerationResult(
                 "The story begins. The word \"dragon\" appears beside the door.",
                 "dragon",
@@ -95,6 +96,7 @@ class StoryGenerationValidatorTests {
                 WritingStyle.FUNNY,
                 "en",
                 safetyMode,
-                "The story begins.");
+                "The story begins.",
+                List.of());
     }
 }

@@ -94,8 +94,10 @@ Mock subscription purchase APIs are disabled by default. Set `SUBSCRIPTIONS_MOCK
 
 AI story generation uses `AI_PROVIDER=mock` by default so local development and tests do not need external credentials. To use OpenAI for Phase 5 generation, set `AI_PROVIDER=openai`, provide `OPENAI_API_KEY`, and optionally override `AI_OPENAI_MODEL`, `AI_OPENAI_BASE_URL`, `AI_OPENAI_CONNECT_TIMEOUT`, or `AI_OPENAI_READ_TIMEOUT`. The backend sends structured JSON schema requests and still validates, moderates, retries, and records attempts before accepting a story segment.
 
-AI observability is available through logs, the `ai_generation_attempts` table, and Micrometer metrics. In local development, expose metrics by adding `metrics` to `management.endpoints.web.exposure.include`, then inspect `ai_generation_attempts_total`, `ai_generation_attempt_duration`, and `ai_generation_failures_total` through Actuator.
+AI observability is available through logs, the `ai_generation_attempts` table, and Micrometer metrics. In local development, expose metrics by adding `metrics` to `management.endpoints.web.exposure.include`, then inspect `ai_generation_attempts_total`, `ai_generation_attempt_duration`, `ai_generation_failures_total`, and `word_similarity_rejections_total` through Actuator.
+
+Word registry prompt memory is bounded by `WORD_REGISTRY_RECENT_WINDOW_DAYS`; inactive rows are retained during private beta for debugging and tuning. See `docs/operations/word-registry-retention.md` for the Phase 6 retention and future pruning strategy.
 
 ## Current Phase
 
-Phase 5 in progress: AI story loop. The backend now routes submitted words through a configurable provider-neutral story generation pipeline with word moderation, prompt building, mock and OpenAI provider options, structured output validation, output moderation, bounded retry policy, persisted generation attempt telemetry, Micrometer AI attempt metrics, and realtime `AI_GENERATION_STARTED` / `STORY_SEGMENT_ADDED` events.
+Phase 6 in progress: Word Registry and anti-repetition. Accepted submitted words are now recorded in a durable word registry with their generated sentence, style, language, player, turn, room, and game context; recent same-room/word/style/language usages are included in prompts, overly similar generated output is rejected and retried, and the registry retention/pruning strategy is documented.

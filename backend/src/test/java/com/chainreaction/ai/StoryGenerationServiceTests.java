@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.UUID;
@@ -22,6 +23,7 @@ import com.chainreaction.room.domain.RoomVisibility;
 import com.chainreaction.room.domain.SafetyMode;
 import com.chainreaction.room.domain.WritingStyle;
 import com.chainreaction.user.domain.User;
+import com.chainreaction.word.WordRegistryService;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
@@ -176,19 +178,84 @@ class StoryGenerationServiceTests {
                 eq("AI response failed output moderation."));
     }
 
+    @Test
+    void includesPreviousWordUsagesInPrompt() {
+        StoryAiProvider provider = (prompt, request) -> {
+            assertThat(prompt.userPrompt()).contains("The word \"dragon\" made soup furious.");
+            assertThat(request.previousUsages()).containsExactly(
+                    new PreviousWordUsage("The word \"dragon\" made soup furious."));
+            return result("The word \"dragon\" pushes the story into a stranger turn.", "dragon");
+        };
+        TestStoryGenerationService service = service(provider, 3);
+        when(service.wordRegistryService().recentUsagesForPrompt(any(), eq("dragon"), eq(WritingStyle.FUNNY), eq("en")))
+                .thenReturn(List.of(new PreviousWordUsage("The word \"dragon\" made soup furious.")));
+
+        StoryGenerationResult result = service.service().generate(
+                gameId,
+                turnId,
+                room(SafetyMode.TEEN),
+                "dragon",
+                "The story begins.");
+
+        assertThat(result.sentence()).isEqualTo("The word \"dragon\" pushes the story into a stranger turn.");
+        verify(service.wordRegistryService()).recentUsagesForPrompt(any(), eq("dragon"), eq(WritingStyle.FUNNY), eq("en"));
+    }
+
+    @Test
+    void retriesSimilarPreviousWordUsageOutput() {
+        AtomicInteger attempts = new AtomicInteger();
+        StoryAiProvider provider = (prompt, request) -> {
+            if (attempts.incrementAndGet() == 1) {
+                return result("The word \"dragon\" made soup furious again.", "dragon");
+            }
+            return result("The word \"dragon\" convinced the moon to juggle clocks.", "dragon");
+        };
+        TestStoryGenerationService service = service(provider, 3);
+        when(service.wordRegistryService().recentUsagesForPrompt(any(), eq("dragon"), eq(WritingStyle.FUNNY), eq("en")))
+                .thenReturn(List.of(new PreviousWordUsage("The word \"dragon\" made soup furious.")));
+
+        StoryGenerationResult result = service.service().generate(
+                gameId,
+                turnId,
+                room(SafetyMode.TEEN),
+                "dragon",
+                "The story begins.");
+
+        assertThat(result.sentence()).isEqualTo("The word \"dragon\" convinced the moon to juggle clocks.");
+        assertThat(attempts).hasValue(2);
+        assertThat(service.meterRegistry().counter(
+                "word_similarity_rejections_total",
+                "provider", "custom",
+                "writing_style", "funny",
+                "language", "en").count()).isEqualTo(1);
+        verify(service.attemptRecorder()).recordFailure(
+                eq(gameId),
+                eq(turnId),
+                eq("dragon"),
+                eq(1),
+                eq("custom"),
+                eq(result("The word \"dragon\" made soup furious again.", "dragon")),
+                anyLong(),
+                eq("AI response was too similar to previous word usage."));
+    }
+
     private TestStoryGenerationService service(StoryAiProvider provider, int maxAttempts) {
         AiGenerationAttemptRecorder attemptRecorder = mock(AiGenerationAttemptRecorder.class);
         SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        WordRegistryService wordRegistryService = mock(WordRegistryService.class);
+        when(wordRegistryService.recentUsagesForPrompt(any(), eq("dragon"), eq(WritingStyle.FUNNY), eq("en"))).thenReturn(List.of());
         StoryGenerationService service = new StoryGenerationService(
                 new WordModerationService(),
                 new StoryPromptBuilder(),
                 provider,
                 new StoryGenerationValidator(),
                 new StoryOutputModerationService(),
+                new StorySimilarityService(0.78),
                 attemptRecorder,
                 new AiGenerationMetrics(meterRegistry),
+                wordRegistryService,
                 maxAttempts);
-        return new TestStoryGenerationService(service, attemptRecorder, meterRegistry);
+        return new TestStoryGenerationService(service, attemptRecorder, meterRegistry, wordRegistryService);
     }
 
     private StoryGenerationResult result(String sentence, String usedWord) {
@@ -222,6 +289,7 @@ class StoryGenerationServiceTests {
     private record TestStoryGenerationService(
             StoryGenerationService service,
             AiGenerationAttemptRecorder attemptRecorder,
-            SimpleMeterRegistry meterRegistry) {
+            SimpleMeterRegistry meterRegistry,
+            WordRegistryService wordRegistryService) {
     }
 }

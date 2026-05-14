@@ -605,6 +605,31 @@ Exit criteria:
 - Reusing the same word and style has access to prior usage memory.
 - The backend can reject and retry obviously repetitive outputs.
 
+Implemented first slice:
+
+- Durable `word_registry_entries` table for accepted word usage memory.
+- Word registry entity, repository, and service.
+- Accepted submit-word flow records normalized word, game, room, turn, segment, player, style, language, generated sentence, and timestamp after the story segment is persisted.
+- Failed validation/moderation submissions do not create registry entries.
+- Story generation fetches recent accepted usages for the submitted word, writing style, and language before prompt construction.
+- Previous usage lookup is bounded by configurable `WORD_REGISTRY_RECENT_WINDOW_DAYS`, defaulting to 30 days.
+- Prompt builder includes prior usage context so providers can avoid repeating old jokes, images, or twists.
+- Token-based similarity checks reject and retry generated output that is too close to recent prior usage in the same room.
+- Similarity threshold is configurable with `WORD_REGISTRY_SIMILARITY_THRESHOLD` and defaults to `0.78`.
+- Similarity rejections are exported through `word_similarity_rejections_total` with provider, writing style, and language tags.
+- Retention strategy is documented in `docs/operations/word-registry-retention.md`: active prompt memory is cutoff-bounded, inactive rows are retained for beta debugging/tuning, and a later scheduled pruning job should delete or anonymized-archive old rows before public launch.
+
+Testing implemented:
+
+- Game integration coverage confirms accepted word submissions create one registry entry linked to the turn/player/style/language/sentence.
+- Game integration coverage confirms rejected submissions leave the word registry empty.
+- Prompt builder unit coverage confirms previous usage context is included and empty memory is labeled.
+- Story generation service unit coverage confirms previous usage memory reaches the provider request and prompt.
+- Story generation service unit coverage confirms similar generated output is rejected and retried.
+- Story generation service unit coverage confirms similarity rejections increment the word similarity metric.
+- Story similarity unit coverage confirms similar output is blocked and distinct output is accepted.
+- Word registry service unit coverage confirms recent registry entries map into prompt memory.
+
 ### Phase 7: Random Word Suggestion
 
 Goal: help stuck players produce safe, funny, style-aware words.

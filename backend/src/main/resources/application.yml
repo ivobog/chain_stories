@@ -42,6 +42,9 @@ app:
       base-url: ${AI_OPENAI_BASE_URL:https://api.openai.com}
       connect-timeout: ${AI_OPENAI_CONNECT_TIMEOUT:3s}
       read-timeout: ${AI_OPENAI_READ_TIMEOUT:15s}
+  word-registry:
+    similarity-threshold: ${WORD_REGISTRY_SIMILARITY_THRESHOLD:0.78}
+    recent-window-days: ${WORD_REGISTRY_RECENT_WINDOW_DAYS:30}
 
 management:
   endpoints:

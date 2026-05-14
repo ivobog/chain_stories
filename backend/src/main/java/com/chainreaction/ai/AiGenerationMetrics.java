@@ -41,4 +41,14 @@ public class AiGenerationMetrics {
                 .register(meterRegistry)
                 .increment();
     }
+
+    public void recordWordSimilarityRejection(String provider, String writingStyle, String language) {
+        Counter.builder("word_similarity_rejections_total")
+                .description("Generated outputs rejected because they were too similar to previous word usage.")
+                .tag("provider", provider)
+                .tag("writing_style", writingStyle.toLowerCase())
+                .tag("language", language)
+                .register(meterRegistry)
+                .increment();
+    }
 }

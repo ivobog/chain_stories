@@ -34,6 +34,7 @@ import com.chainreaction.room.domain.RoomParticipantStatus;
 import com.chainreaction.room.domain.RoomStatus;
 import com.chainreaction.room.repository.RoomParticipantRepository;
 import com.chainreaction.room.repository.RoomRepository;
+import com.chainreaction.word.WordRegistryService;
 
 @Service
 public class GameService {
@@ -49,6 +50,7 @@ public class GameService {
     private final RoomParticipantRepository roomParticipantRepository;
     private final RealtimeEventPublisher realtimeEventPublisher;
     private final StoryGenerationService storyGenerationService;
+    private final WordRegistryService wordRegistryService;
 
     public GameService(
             GameRepository gameRepository,
@@ -58,7 +60,8 @@ public class GameService {
             RoomRepository roomRepository,
             RoomParticipantRepository roomParticipantRepository,
             RealtimeEventPublisher realtimeEventPublisher,
-            StoryGenerationService storyGenerationService) {
+            StoryGenerationService storyGenerationService,
+            WordRegistryService wordRegistryService) {
         this.gameRepository = gameRepository;
         this.gameTurnRepository = gameTurnRepository;
         this.storyRepository = storyRepository;
@@ -67,6 +70,7 @@ public class GameService {
         this.roomParticipantRepository = roomParticipantRepository;
         this.realtimeEventPublisher = realtimeEventPublisher;
         this.storyGenerationService = storyGenerationService;
+        this.wordRegistryService = wordRegistryService;
     }
 
     @Transactional
@@ -138,12 +142,13 @@ public class GameService {
 
         turn.submit();
         int sequenceNumber = (int) storySegmentRepository.countByStoryId(story.getId()) + 1;
-        storySegmentRepository.save(new StorySegment(
+        StorySegment storySegment = storySegmentRepository.save(new StorySegment(
                 story,
                 turn,
                 turn.getPlayer(),
                 sequenceNumber,
                 generation.sentence()));
+        wordRegistryService.recordAcceptedUsage(game, turn, storySegment, generation);
 
         GameResponse result = advanceAfterTurn(game, turn);
         publishGameEvent(game, RealtimeEventType.WORD_SUBMITTED, result);

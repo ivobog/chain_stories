@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import com.chainreaction.common.error.ApiException;
 import com.chainreaction.common.error.ErrorCode;
 import com.chainreaction.room.domain.Room;
+import com.chainreaction.word.WordRegistryService;
 
 @Service
 public class StoryGenerationService {
@@ -24,8 +25,10 @@ public class StoryGenerationService {
     private final StoryAiProvider aiProvider;
     private final StoryGenerationValidator validator;
     private final StoryOutputModerationService outputModerationService;
+    private final StorySimilarityService similarityService;
     private final AiGenerationAttemptRecorder attemptRecorder;
     private final AiGenerationMetrics metrics;
+    private final WordRegistryService wordRegistryService;
     private final int maxAttempts;
 
     public StoryGenerationService(
@@ -34,16 +37,20 @@ public class StoryGenerationService {
             StoryAiProvider aiProvider,
             StoryGenerationValidator validator,
             StoryOutputModerationService outputModerationService,
+            StorySimilarityService similarityService,
             AiGenerationAttemptRecorder attemptRecorder,
             AiGenerationMetrics metrics,
+            WordRegistryService wordRegistryService,
             @Value("${app.ai.generation.max-attempts:3}") int maxAttempts) {
         this.wordModerationService = wordModerationService;
         this.promptBuilder = promptBuilder;
         this.aiProvider = aiProvider;
         this.validator = validator;
         this.outputModerationService = outputModerationService;
+        this.similarityService = similarityService;
         this.attemptRecorder = attemptRecorder;
         this.metrics = metrics;
+        this.wordRegistryService = wordRegistryService;
         this.maxAttempts = Math.max(1, maxAttempts);
     }
 
@@ -54,7 +61,12 @@ public class StoryGenerationService {
                 room.getWritingStyle(),
                 room.getLanguage(),
                 room.getSafetyMode(),
-                currentStory);
+                currentStory,
+                wordRegistryService.recentUsagesForPrompt(
+                        room.getId(),
+                        moderatedWord.normalized(),
+                        room.getWritingStyle(),
+                        room.getLanguage()));
         StoryGenerationPrompt prompt = promptBuilder.build(request);
         Instant startedAt = Instant.now();
         RuntimeException lastFailure = null;
@@ -65,6 +77,7 @@ public class StoryGenerationService {
                 result = aiProvider.generate(prompt, request);
                 validator.validate(result, request);
                 outputModerationService.moderate(result, request);
+                similarityService.rejectIfTooSimilar(result, request);
                 long latencyMs = elapsedMillis(attemptStartedAt);
                 attemptRecorder.recordSuccess(
                         gameId,
@@ -96,6 +109,12 @@ public class StoryGenerationService {
                         latencyMs,
                         exception.getMessage());
                 metrics.recordAttempt(aiProvider.providerName(), AiGenerationAttemptStatus.FAILED, latencyMs);
+                if (exception instanceof StorySimilarityRejectionException) {
+                    metrics.recordWordSimilarityRejection(
+                            aiProvider.providerName(),
+                            room.getWritingStyle().name(),
+                            room.getLanguage());
+                }
                 LOGGER.warn(
                         "story_generation_attempt_failed attempt={} maxAttempts={} latencyMs={} reason={}",
                         attempt,

@@ -2,6 +2,8 @@ package com.chainreaction.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
 import com.chainreaction.room.domain.SafetyMode;
@@ -20,7 +22,8 @@ class MockStoryAiProviderTests {
                         WritingStyle.FUNNY,
                         "en",
                         SafetyMode.TEEN,
-                        "The story begins."));
+                        "The story begins.",
+                        List.of()));
 
         assertThat(provider.providerName()).isEqualTo("mock");
         assertThat(result.model()).isEqualTo("mock-test-model");

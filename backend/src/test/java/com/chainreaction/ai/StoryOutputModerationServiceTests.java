@@ -56,6 +56,7 @@ class StoryOutputModerationServiceTests {
                 WritingStyle.FUNNY,
                 "en",
                 safetyMode,
-                "The story begins.");
+                "The story begins.",
+                List.of());
     }
 }
