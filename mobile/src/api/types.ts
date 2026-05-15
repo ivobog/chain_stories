@@ -6,11 +6,20 @@ export type WritingStyle =
   | "FUNNY"
   | "HORROR"
   | "BATSHIT_CRAZY"
-  | "NOIR_DETECTIVE"
-  | "FAIRY_TALE"
-  | "MANGA_ACTION"
+  | "DETECTIVE_NOIR"
   | "FAMILY_FRIENDLY"
-  | "SWISS_CHAOS";
+  | "DARK_HUMOR"
+  | "SCI_FI"
+  | "ROMANCE"
+  | "EPIC"
+  | "CREEPY"
+  | "POETIC_PROSE"
+  | "HOMER"
+  | "WILLIAM_SHAKESPEARE"
+  | "EDGAR_ALLAN_POE"
+  | "OSCAR_WILDE"
+  | "NIKOLAI_GOGOL"
+  | "MIGUEL_DE_CERVANTES";
 export type SafetyMode = "FAMILY" | "TEEN";
 export type RoomVisibility = "PRIVATE" | "PUBLIC";
 export type GameStatus = "ACTIVE" | "VOTING" | "FINISHED";

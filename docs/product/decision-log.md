@@ -14,3 +14,11 @@ These decisions are the recommended Phase 0 defaults from the execution plan. Th
 | Story retention policy? | Store by default with deletion support. |
 | Random word suggestion in MVP? | Yes. |
 | Sharing paid-only from beginning? | Add entitlement hooks early; ship sharing after gameplay validation. |
+
+## 2026-05-15
+
+| Question | Decision |
+| --- | --- |
+| Writing style catalog source of truth? | Use the approved 17-style catalog only, with no compatibility mappings. |
+| Detective style API value? | Keep `DETECTIVE_NOIR` as the canonical backend and mobile value. |
+| How should mobile present the longer style catalog? | Group the selector into core styles and classic author styles. |

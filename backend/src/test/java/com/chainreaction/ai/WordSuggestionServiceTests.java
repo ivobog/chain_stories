@@ -2,8 +2,8 @@ package com.chainreaction.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
@@ -59,5 +59,21 @@ class WordSuggestionServiceTests {
                 List.of()));
 
         assertThat(result.normalizedWord()).isEqualTo("spark");
+    }
+
+    @Test
+    void providesSuggestionCoverageForEveryApprovedStyle() {
+        for (WritingStyle style : WritingStyle.values()) {
+            WordSuggestionResult result = service.suggest(new WordSuggestionRequest(
+                    style,
+                    "en",
+                    SafetyMode.TEEN,
+                    "The story begins.",
+                    List.of()));
+
+            assertThat(result.word()).isNotBlank();
+            assertThat(result.normalizedWord()).isEqualTo(result.word());
+            assertThat(result.safetyLevel()).isEqualTo("TEEN");
+        }
     }
 }

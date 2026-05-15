@@ -16,7 +16,7 @@ class WordSuggestionPromptBuilderTests {
     @Test
     void buildsPromptWithSuggestionContext() {
         WordSuggestionPrompt prompt = builder.build(new WordSuggestionRequest(
-                WritingStyle.NOIR_DETECTIVE,
+                WritingStyle.DETECTIVE_NOIR,
                 "en",
                 SafetyMode.TEEN,
                 "The detective found a clue.",
@@ -26,7 +26,7 @@ class WordSuggestionPromptBuilderTests {
                 .contains("Suggest exactly one playable word")
                 .contains("Do not return a phrase");
         assertThat(prompt.userPrompt())
-                .contains("Writing style: NOIR_DETECTIVE")
+                .contains("Writing style: DETECTIVE_NOIR")
                 .contains("Language: en")
                 .contains("Safety mode: TEEN")
                 .contains("rain, shadow")

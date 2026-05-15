@@ -79,6 +79,26 @@ class RoomControllerIntegrationTests {
     }
 
     @Test
+    void createRoomRejectsRetiredWritingStyles() throws Exception {
+        AuthResponse host = register("host-retired-style-" + UUID.randomUUID() + "@example.com", "Host");
+
+        mockMvc.perform(post("/api/v1/rooms")
+                        .header("Authorization", "Bearer " + host.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "writingStyle", "FAIRY_TALE",
+                                "language", "en",
+                                "safetyMode", "TEEN",
+                                "maxPlayers", 2,
+                                "turnLimit", 10,
+                                "turnTimeoutSeconds", 30,
+                                "visibility", "PRIVATE"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode", equalTo("VALIDATION_FAILED")))
+                .andExpect(jsonPath("$.fieldErrors[0].field", equalTo("writingStyle")));
+    }
+
+    @Test
     void freeUserCannotCreateRoomAbovePlanLimitButPaidUserCan() throws Exception {
         AuthResponse freeUser = register("free-room-" + UUID.randomUUID() + "@example.com", "Free");
 
@@ -323,6 +343,30 @@ class RoomControllerIntegrationTests {
         updateSettings(host.accessToken(), roomId, 1)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode", equalTo("VALIDATION_FAILED")));
+    }
+
+    @Test
+    void updateSettingsRejectsRetiredWritingStyles() throws Exception {
+        AuthResponse host = register("host-retired-update-" + UUID.randomUUID() + "@example.com", "Host");
+
+        MvcResult createResult = createRoom(host.accessToken(), 2).andExpect(status().isOk()).andReturn();
+        Map<String, Object> room = responseBody(createResult);
+        String roomId = (String) room.get("roomId");
+
+        mockMvc.perform(patch("/api/v1/rooms/" + roomId + "/settings")
+                        .header("Authorization", "Bearer " + host.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "writingStyle", "MANGA_ACTION",
+                                "language", "DE-CH",
+                                "safetyMode", "FAMILY",
+                                "maxPlayers", 2,
+                                "turnLimit", 12,
+                                "turnTimeoutSeconds", 45,
+                                "visibility", "PUBLIC"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode", equalTo("VALIDATION_FAILED")))
+                .andExpect(jsonPath("$.fieldErrors[0].field", equalTo("writingStyle")));
     }
 
     @Test

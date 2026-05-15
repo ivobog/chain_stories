@@ -1,6 +1,6 @@
 # Room/Game Load Test
 
-Phase 10 includes a basic k6 script for the private-beta room/game flow.
+Phase 10 includes basic k6 scripts for the private-beta room/game flow and the play-with-bot flow.
 
 ## Prerequisites
 
@@ -21,6 +21,12 @@ Run the test:
 
 ```powershell
 k6 run tools/load/k6-room-game.mjs
+```
+
+Run the play-with-bot smoke test:
+
+```powershell
+k6 run tools/load/k6-play-with-bot-game.mjs
 ```
 
 Override target and volume:
@@ -44,6 +50,14 @@ Each iteration:
 6. Submits one word per player.
 7. Submits all vote categories for both players.
 8. Fetches vote results.
+
+The play-with-bot script:
+
+1. Registers one human player.
+2. Creates a two-turn play-with-bot game.
+3. Submits the human word.
+4. Polls until the async bot turn is auto-submitted.
+5. Verifies the game reaches voting with three story segments.
 
 ## Baseline Thresholds
 

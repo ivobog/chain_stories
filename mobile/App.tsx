@@ -36,6 +36,7 @@ import {
   type WritingStyle,
 } from "./src/api";
 import { renderableStoryText } from "./src/story-text";
+import { WRITING_STYLE_GROUPS, styleLabel } from "./src/writing-styles";
 
 const DEFAULT_API_BASE_URL = "http://localhost:8080";
 const SESSION_KEYS = {
@@ -55,7 +56,6 @@ const VOTE_CATEGORIES: VoteCategory[] = [
   "MVP_PLAYER",
 ];
 
-const WRITING_STYLES: WritingStyle[] = ["FUNNY", "HORROR", "FAIRY_TALE", "MANGA_ACTION", "SWISS_CHAOS"];
 const SAFETY_MODES: SafetyMode[] = ["TEEN", "FAMILY"];
 const VISIBILITIES: RoomVisibility[] = ["PRIVATE", "PUBLIC"];
 
@@ -928,9 +928,9 @@ function CreateRoomScreen({
 
       <View style={styles.panel}>
         <Text style={styles.sectionTitle}>Story Setup</Text>
-        <OptionRow
+        <GroupedOptionRow
           label="Writing style"
-          options={WRITING_STYLES}
+          groups={WRITING_STYLE_GROUPS}
           value={writingStyle}
           onChange={setWritingStyle}
           formatter={styleLabel}
@@ -1009,7 +1009,7 @@ function LobbyScreen({
       <View style={styles.panel}>
         <Text style={styles.sectionTitle}>Lobby {room.roomCode}</Text>
         <Text style={styles.muted}>
-          {room.status} / {room.settings.writingStyle} / {room.settings.turnLimit} turns
+          {room.status} / {styleLabel(room.settings.writingStyle)} / {room.settings.turnLimit} turns
         </Text>
         <View style={styles.buttonRow}>
           <SecondaryButton label="Back" onPress={onBack} />
@@ -1103,9 +1103,9 @@ function RoomSettingsEditor({
   return (
     <View style={styles.panel}>
       <Text style={styles.sectionTitle}>Room Settings</Text>
-      <OptionRow
+      <GroupedOptionRow
         label="Writing style"
-        options={WRITING_STYLES}
+        groups={WRITING_STYLE_GROUPS}
         value={writingStyle}
         onChange={setWritingStyle}
         formatter={styleLabel}
@@ -1493,7 +1493,7 @@ function OptionRow<TValue extends string>({
   formatter = (option) => option,
 }: {
   label: string;
-  options: TValue[];
+  options: readonly TValue[];
   value: TValue;
   onChange: (value: TValue) => void;
   formatter?: (value: TValue) => string;
@@ -1514,6 +1514,44 @@ function OptionRow<TValue extends string>({
           </Pressable>
         ))}
       </View>
+    </View>
+  );
+}
+
+function GroupedOptionRow<TValue extends string>({
+  label,
+  groups,
+  value,
+  onChange,
+  formatter = (option) => option,
+}: {
+  label: string;
+  groups: readonly { label: string; options: readonly TValue[] }[];
+  value: TValue;
+  onChange: (value: TValue) => void;
+  formatter?: (value: TValue) => string;
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      {groups.map((group) => (
+        <View key={group.label} style={styles.optionGroup}>
+          <Text style={styles.optionGroupTitle}>{group.label}</Text>
+          <View style={styles.optionGrid}>
+            {group.options.map((option) => (
+              <Pressable
+                key={option}
+                style={[styles.optionButton, option === value && styles.optionButtonActive]}
+                onPress={() => onChange(option)}
+              >
+                <Text style={[styles.optionButtonText, option === value && styles.optionButtonTextActive]}>
+                  {formatter(option)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ))}
     </View>
   );
 }
@@ -1622,14 +1660,6 @@ function formatTimeRemaining(expiresAt: string, now: number) {
   return minutes > 0 ? `${minutes}:${seconds.toString().padStart(2, "0")}` : `${seconds}s`;
 }
 
-function styleLabel(style: WritingStyle) {
-  return style
-    .toLowerCase()
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
 function isRoomResponse(payload: unknown): payload is RoomResponse {
   return typeof payload === "object" && payload !== null && "roomId" in payload && "participants" in payload;
 }
@@ -1734,6 +1764,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+  },
+  optionGroup: {
+    gap: 8,
+  },
+  optionGroupTitle: {
+    color: "#626b72",
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
   },
   optionButton: {
     backgroundColor: "#f8fafc",

@@ -56,6 +56,28 @@ Only hosts can update lobby settings. Updates are allowed while the room is in `
 `GET /api/v1/rooms` lists the current user's active joined rooms for resume flows. Room code previews expose host display name, settings, active player count, and join availability without exposing participant emails.
 Close, leave, and kick actions reject rooms that are already closed, expired, or banned. Kicks can target only active non-host participants.
 
+Approved writing styles for room create/update requests:
+
+- `FUNNY`
+- `HORROR`
+- `BATSHIT_CRAZY`
+- `DETECTIVE_NOIR`
+- `FAMILY_FRIENDLY`
+- `DARK_HUMOR`
+- `SCI_FI`
+- `ROMANCE`
+- `EPIC`
+- `CREEPY`
+- `POETIC_PROSE`
+- `HOMER`
+- `WILLIAM_SHAKESPEARE`
+- `EDGAR_ALLAN_POE`
+- `OSCAR_WILDE`
+- `NIKOLAI_GOGOL`
+- `MIGUEL_DE_CERVANTES`
+
+The backend resolves human-readable labels and LLM style guidance server-side. Mobile groups these into core styles and classic author styles for readability, but the API contract uses the enum values above.
+
 Games:
 
 - `POST /api/v1/rooms/{roomId}/games/start`

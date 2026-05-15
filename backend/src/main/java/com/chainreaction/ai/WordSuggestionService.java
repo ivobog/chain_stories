@@ -25,11 +25,20 @@ public class WordSuggestionService {
         WORDS_BY_STYLE.put(WritingStyle.FUNNY, List.of("pickle", "kazoo", "waffle", "mustache", "banana"));
         WORDS_BY_STYLE.put(WritingStyle.HORROR, List.of("shadow", "mirror", "whisper", "cellar", "fog"));
         WORDS_BY_STYLE.put(WritingStyle.BATSHIT_CRAZY, List.of("volcano", "llama", "thunder", "glitter", "portal"));
-        WORDS_BY_STYLE.put(WritingStyle.NOIR_DETECTIVE, List.of("alibi", "cigarette", "raincoat", "cipher", "briefcase"));
-        WORDS_BY_STYLE.put(WritingStyle.FAIRY_TALE, List.of("crown", "acorn", "wand", "goblet", "castle"));
-        WORDS_BY_STYLE.put(WritingStyle.MANGA_ACTION, List.of("katana", "comet", "rival", "dojo", "tornado"));
+        WORDS_BY_STYLE.put(WritingStyle.DETECTIVE_NOIR, List.of("alibi", "raincoat", "cipher", "briefcase", "fedora"));
         WORDS_BY_STYLE.put(WritingStyle.FAMILY_FRIENDLY, List.of("cupcake", "rainbow", "puzzle", "balloon", "pajamas"));
-        WORDS_BY_STYLE.put(WritingStyle.SWISS_CHAOS, List.of("fondue", "tram", "yodel", "glacier", "cowbell"));
+        WORDS_BY_STYLE.put(WritingStyle.DARK_HUMOR, List.of("umbrella", "deadline", "portrait", "receipt", "elevator"));
+        WORDS_BY_STYLE.put(WritingStyle.SCI_FI, List.of("nebula", "android", "quantum", "terraform", "signal"));
+        WORDS_BY_STYLE.put(WritingStyle.ROMANCE, List.of("letter", "rain", "promise", "garden", "moonlight"));
+        WORDS_BY_STYLE.put(WritingStyle.EPIC, List.of("oath", "citadel", "banner", "oracle", "thunder"));
+        WORDS_BY_STYLE.put(WritingStyle.CREEPY, List.of("hallway", "portrait", "whisper", "attic", "footstep"));
+        WORDS_BY_STYLE.put(WritingStyle.POETIC_PROSE, List.of("river", "lantern", "ember", "horizon", "silence"));
+        WORDS_BY_STYLE.put(WritingStyle.HOMER, List.of("oar", "bronze", "harbor", "feast", "oracle"));
+        WORDS_BY_STYLE.put(WritingStyle.WILLIAM_SHAKESPEARE, List.of("crown", "dagger", "moon", "mask", "letter"));
+        WORDS_BY_STYLE.put(WritingStyle.EDGAR_ALLAN_POE, List.of("raven", "chamber", "heartbeat", "tomb", "midnight"));
+        WORDS_BY_STYLE.put(WritingStyle.OSCAR_WILDE, List.of("salon", "mirror", "orchid", "secret", "portrait"));
+        WORDS_BY_STYLE.put(WritingStyle.NIKOLAI_GOGOL, List.of("overcoat", "clerk", "stamp", "nose", "bureau"));
+        WORDS_BY_STYLE.put(WritingStyle.MIGUEL_DE_CERVANTES, List.of("windmill", "helmet", "inn", "road", "squire"));
     }
 
     private final WordModerationService wordModerationService;

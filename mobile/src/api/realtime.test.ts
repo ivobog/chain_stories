@@ -88,6 +88,54 @@ describe("RealtimeConnection", () => {
     expect(onRoomEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "PLAYER_JOINED" }));
     expect(onUserEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "PLAYER_KICKED" }));
   });
+
+  it("processes every frame when a websocket message contains multiple stomp frames", () => {
+    const onRoomEvent = vi.fn();
+    const onUserEvent = vi.fn();
+    const connection = new RealtimeConnection({
+      baseUrl: BASE_URL,
+      accessToken: ACCESS_TOKEN,
+      onRoomEvent,
+      onUserEvent,
+    });
+
+    connection.connect();
+    connection.subscribeToRoom("room-id");
+    connection.subscribeToUserQueue();
+
+    const socket = sockets[0];
+    socket.emitOpen();
+    socket.emitMessage(
+      [
+        frame("CONNECTED", { version: "1.2" }),
+        frame(
+          "MESSAGE",
+          { destination: "/topic/rooms/room-id" },
+          JSON.stringify({ type: "AI_GENERATION_STARTED", roomId: "room-id", gameId: "game-id", payload: {}, occurredAt: "now" }),
+        ),
+        frame(
+          "MESSAGE",
+          { destination: "/user/queue/events" },
+          JSON.stringify({ type: "PLAYER_KICKED", roomId: null, gameId: null, payload: {}, occurredAt: "now" }),
+        ),
+      ].join(""),
+    );
+
+    expect(socket.sentFrames).toContain(
+      frame("SUBSCRIBE", {
+        id: "sub-1",
+        destination: "/topic/rooms/room-id",
+      }),
+    );
+    expect(socket.sentFrames).toContain(
+      frame("SUBSCRIBE", {
+        id: "sub-2",
+        destination: "/user/queue/events",
+      }),
+    );
+    expect(onRoomEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "AI_GENERATION_STARTED" }));
+    expect(onUserEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "PLAYER_KICKED" }));
+  });
 });
 
 function frame(command: string, headers: Record<string, string>, body = "") {

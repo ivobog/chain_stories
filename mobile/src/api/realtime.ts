@@ -75,7 +75,7 @@ export class RealtimeConnection {
       if (command === "CONNECTED") {
         this.connected = true;
         this.flushPendingSubscriptions();
-        return;
+        continue;
       }
       if (command === "MESSAGE") {
         const event = JSON.parse(body) as RealtimeEvent;
@@ -84,7 +84,7 @@ export class RealtimeConnection {
         } else {
           this.options.onRoomEvent?.(event);
         }
-        return;
+        continue;
       }
       if (command === "ERROR") {
         this.options.onError?.(new Error(body || "WebSocket broker error."));
