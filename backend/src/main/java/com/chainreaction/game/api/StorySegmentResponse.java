@@ -9,7 +9,9 @@ public record StorySegmentResponse(
         int sequenceNumber,
         Integer turnNumber,
         UUID authorUserId,
-        String content) {
+        String content,
+        String playedWord,
+        String playedWordNormalized) {
 
     public static StorySegmentResponse from(StorySegment segment) {
         return new StorySegmentResponse(
@@ -17,6 +19,8 @@ public record StorySegmentResponse(
                 segment.getSequenceNumber(),
                 segment.getTurnNumber(),
                 segment.getAuthorUserId(),
-                segment.getContent());
+                segment.getContent(),
+                segment.getPlayedWord(),
+                segment.getPlayedWordNormalized());
     }
 }

@@ -39,6 +39,12 @@ public class StorySegment {
     @Column(nullable = false, columnDefinition = "text")
     private String content;
 
+    @Column(name = "played_word", length = 40)
+    private String playedWord;
+
+    @Column(name = "played_word_normalized", length = 80)
+    private String playedWordNormalized;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -46,12 +52,25 @@ public class StorySegment {
     }
 
     public StorySegment(Story story, GameTurn turn, User author, int sequenceNumber, String content) {
+        this(story, turn, author, sequenceNumber, content, null, null);
+    }
+
+    public StorySegment(
+            Story story,
+            GameTurn turn,
+            User author,
+            int sequenceNumber,
+            String content,
+            String playedWord,
+            String playedWordNormalized) {
         this.id = UUID.randomUUID();
         this.story = story;
         this.turn = turn;
         this.author = author;
         this.sequenceNumber = sequenceNumber;
         this.content = content;
+        this.playedWord = playedWord;
+        this.playedWordNormalized = playedWordNormalized;
     }
 
     @PrePersist
@@ -77,5 +96,13 @@ public class StorySegment {
 
     public String getContent() {
         return content;
+    }
+
+    public String getPlayedWord() {
+        return playedWord;
+    }
+
+    public String getPlayedWordNormalized() {
+        return playedWordNormalized;
     }
 }

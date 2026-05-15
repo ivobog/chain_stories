@@ -59,6 +59,10 @@ public class Room {
     @Column(nullable = false, length = 32)
     private RoomVisibility visibility;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "game_mode", nullable = false, length = 32)
+    private GameMode gameMode;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -92,6 +96,7 @@ public class Room {
         this.turnLimit = turnLimit;
         this.turnTimeoutSeconds = turnTimeoutSeconds;
         this.visibility = visibility;
+        this.gameMode = GameMode.MULTIPLAYER;
     }
 
     @PrePersist
@@ -178,5 +183,9 @@ public class Room {
 
     public RoomVisibility getVisibility() {
         return visibility;
+    }
+
+    public GameMode getGameMode() {
+        return gameMode;
     }
 }

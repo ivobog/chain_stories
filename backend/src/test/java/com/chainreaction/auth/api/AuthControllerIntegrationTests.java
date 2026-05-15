@@ -19,11 +19,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import com.chainreaction.auth.service.RefreshTokenService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.chainreaction.user.domain.User;
+import com.chainreaction.user.domain.UserAccountType;
+import com.chainreaction.user.domain.UserProfile;
+import com.chainreaction.user.repository.UserProfileRepository;
+import com.chainreaction.user.repository.UserRepository;
 
 @SpringBootTest(properties = {
         "app.security.auth.rate-limit-per-window=5",
@@ -37,6 +44,18 @@ class AuthControllerIntegrationTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private UserProfileRepository userProfileRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private RefreshTokenService refreshTokenService;
 
     @Test
     void registerLoginRefreshAndMeFlow() throws Exception {
@@ -115,6 +134,30 @@ class AuthControllerIntegrationTests {
                         .content(json(Map.of("refreshToken", auth.refreshToken()))))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode", equalTo("INVALID_REFRESH_TOKEN")));
+    }
+
+    @Test
+    void botAccountsCannotLoginOrRefresh() throws Exception {
+        User botUser = new User("storybot-test-" + UUID.randomUUID() + "@system.local", passwordEncoder.encode("Secret"));
+        botUser.updateAccountType(UserAccountType.BOT);
+        botUser = userRepository.save(botUser);
+        userProfileRepository.save(new UserProfile(botUser, "StoryBot"));
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "email", botUser.getEmail(),
+                                "password", "Secret"))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode", equalTo("INVALID_CREDENTIALS")));
+
+        String refreshToken = refreshTokenService.issue(botUser).plaintextToken();
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("refreshToken", refreshToken))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode", equalTo("ACCESS_DENIED")));
     }
 
     @Test

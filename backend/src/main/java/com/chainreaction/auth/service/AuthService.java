@@ -73,6 +73,10 @@ public class AuthService {
                     authEventService.record(null, normalizedEmail, "LOGIN", "FAILURE", "INVALID_CREDENTIALS");
                     return invalidCredentials();
                 });
+        if (!user.isHuman()) {
+            authEventService.record(user, normalizedEmail, "LOGIN", "FAILURE", "INVALID_CREDENTIALS");
+            throw invalidCredentials();
+        }
         assertCanAuthenticate(user);
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
@@ -120,6 +124,10 @@ public class AuthService {
     }
 
     private void assertCanAuthenticate(User user) {
+        if (!user.isHuman()) {
+            throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN,
+                    "Only human accounts can authenticate.");
+        }
         if (user.getStatus() == UserStatus.SUSPENDED) {
             throw new ApiException(ErrorCode.ACCOUNT_SUSPENDED, HttpStatus.FORBIDDEN, "Account is suspended.");
         }

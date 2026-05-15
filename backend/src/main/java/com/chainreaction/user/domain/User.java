@@ -33,6 +33,10 @@ public class User {
     @Column(nullable = false, length = 64)
     private UserRole role;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "account_type", nullable = false, length = 16)
+    private UserAccountType accountType;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -51,6 +55,7 @@ public class User {
         this.passwordHash = passwordHash;
         this.status = UserStatus.ACTIVE;
         this.role = UserRole.ROLE_USER;
+        this.accountType = UserAccountType.HUMAN;
     }
 
     @PrePersist
@@ -89,6 +94,14 @@ public class User {
         return role;
     }
 
+    public UserAccountType getAccountType() {
+        return accountType;
+    }
+
+    public void updateAccountType(UserAccountType accountType) {
+        this.accountType = accountType;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }
@@ -99,6 +112,18 @@ public class User {
 
     public boolean isActive() {
         return status == UserStatus.ACTIVE;
+    }
+
+    public boolean isHuman() {
+        return accountType == UserAccountType.HUMAN;
+    }
+
+    public boolean isBot() {
+        return accountType == UserAccountType.BOT;
+    }
+
+    public boolean isSystem() {
+        return accountType == UserAccountType.SYSTEM;
     }
 
     public void markDeleted() {
