@@ -10,18 +10,20 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Consumer;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.transaction.TransactionStatus;
+import org.springframework.http.HttpStatus;
+import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.chainreaction.ai.WordSuggestionResult;
 import com.chainreaction.ai.WordSuggestionService;
+import com.chainreaction.common.error.ApiException;
+import com.chainreaction.common.error.ErrorCode;
 import com.chainreaction.game.domain.Game;
 import com.chainreaction.game.domain.GameStatus;
 import com.chainreaction.game.domain.GameTurn;
@@ -67,12 +69,13 @@ class BotTurnServiceTests {
                 wordRegistryService,
                 gameService,
                 transactionTemplate,
-                0);
+                0,
+                3);
         org.mockito.Mockito.doAnswer(invocation -> {
-            Consumer<TransactionStatus> callback = invocation.getArgument(0);
-            callback.accept(null);
-            return null;
-        }).when(transactionTemplate).executeWithoutResult(any());
+            @SuppressWarnings("unchecked")
+            TransactionCallback<Object> callback = (TransactionCallback<Object>) invocation.getArgument(0);
+            return callback.doInTransaction(null);
+        }).when(transactionTemplate).execute(any());
     }
 
     @Test
@@ -193,5 +196,131 @@ class BotTurnServiceTests {
         verify(wordSuggestionService, never()).suggest(any());
         verify(gameService, never()).submitBotWord(any(), any(), any(), any());
         verifyNoInteractions(wordRegistryService);
+    }
+
+    @Test
+    void playIfBotTurnRetriesValidationFailuresWithNewSuggestion() {
+        UUID gameId = UUID.randomUUID();
+        UUID turnId = UUID.randomUUID();
+        UUID botUserId = UUID.randomUUID();
+        Game game = mock(Game.class);
+        Room room = mock(Room.class);
+        GameTurn turn = mock(GameTurn.class);
+        User botUser = mock(User.class);
+
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(game));
+        when(game.getId()).thenReturn(gameId);
+        when(game.getStatus()).thenReturn(GameStatus.ACTIVE);
+        when(game.getRoom()).thenReturn(room);
+        when(room.getStatus()).thenReturn(RoomStatus.ACTIVE);
+        when(room.getWritingStyle()).thenReturn(WritingStyle.FUNNY);
+        when(room.getLanguage()).thenReturn("en");
+        when(room.getSafetyMode()).thenReturn(SafetyMode.TEEN);
+        when(gameTurnRepository.findByIdForUpdate(turnId)).thenReturn(Optional.of(turn));
+        when(turn.getGame()).thenReturn(game);
+        when(turn.getStatus()).thenReturn(GameTurnStatus.ACTIVE);
+        when(turn.getPlayer()).thenReturn(botUser);
+        when(botUser.isBot()).thenReturn(true);
+        when(botUser.getId()).thenReturn(botUserId);
+        when(gameService.fullStoryForGame(gameId)).thenReturn("A winding story.");
+        when(wordRegistryService.acceptedWordsForGame(gameId)).thenReturn(List.of("dragon"));
+        when(wordSuggestionService.suggest(any()))
+                .thenReturn(new WordSuggestionResult("moon", "moon", "TEEN"))
+                .thenReturn(new WordSuggestionResult("river", "river", "TEEN"));
+        when(gameService.submitBotWord(botUserId, gameId, turnId, "moon"))
+                .thenThrow(new ApiException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Blocked"));
+        when(gameService.submitBotWord(botUserId, gameId, turnId, "river"))
+                .thenReturn(null);
+
+        botTurnService.playIfBotTurn(gameId, turnId);
+
+        verify(wordSuggestionService, org.mockito.Mockito.times(2)).suggest(any());
+        verify(gameService).submitBotWord(botUserId, gameId, turnId, "moon");
+        verify(gameService).submitBotWord(botUserId, gameId, turnId, "river");
+    }
+
+    @Test
+    void playIfBotTurnStopsAfterConfiguredRetryLimit() {
+        UUID gameId = UUID.randomUUID();
+        UUID turnId = UUID.randomUUID();
+        UUID botUserId = UUID.randomUUID();
+        Game game = mock(Game.class);
+        Room room = mock(Room.class);
+        GameTurn turn = mock(GameTurn.class);
+        User botUser = mock(User.class);
+        BotTurnService limitedRetryService = new BotTurnService(
+                gameRepository,
+                gameTurnRepository,
+                wordSuggestionService,
+                wordRegistryService,
+                gameService,
+                transactionTemplate,
+                0,
+                2);
+
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(game));
+        when(game.getId()).thenReturn(gameId);
+        when(game.getStatus()).thenReturn(GameStatus.ACTIVE);
+        when(game.getRoom()).thenReturn(room);
+        when(room.getStatus()).thenReturn(RoomStatus.ACTIVE);
+        when(room.getWritingStyle()).thenReturn(WritingStyle.FUNNY);
+        when(room.getLanguage()).thenReturn("en");
+        when(room.getSafetyMode()).thenReturn(SafetyMode.TEEN);
+        when(gameTurnRepository.findByIdForUpdate(turnId)).thenReturn(Optional.of(turn));
+        when(turn.getGame()).thenReturn(game);
+        when(turn.getStatus()).thenReturn(GameTurnStatus.ACTIVE);
+        when(turn.getPlayer()).thenReturn(botUser);
+        when(botUser.isBot()).thenReturn(true);
+        when(botUser.getId()).thenReturn(botUserId);
+        when(gameService.fullStoryForGame(gameId)).thenReturn("A winding story.");
+        when(wordRegistryService.acceptedWordsForGame(gameId)).thenReturn(List.of("dragon"));
+        when(wordSuggestionService.suggest(any())).thenReturn(new WordSuggestionResult("moon", "moon", "TEEN"));
+        when(gameService.submitBotWord(botUserId, gameId, turnId, "moon"))
+                .thenThrow(new ApiException(
+                        ErrorCode.AI_GENERATION_FAILED,
+                        HttpStatus.BAD_GATEWAY,
+                        "Story generation failed. Please try again."));
+
+        limitedRetryService.playIfBotTurn(gameId, turnId);
+
+        verify(wordSuggestionService, org.mockito.Mockito.times(2)).suggest(any());
+        verify(gameService, org.mockito.Mockito.times(2)).submitBotWord(botUserId, gameId, turnId, "moon");
+    }
+
+    @Test
+    void playIfBotTurnIgnoresDuplicateProcessingAfterFirstSubmissionSucceeds() {
+        UUID gameId = UUID.randomUUID();
+        UUID turnId = UUID.randomUUID();
+        UUID botUserId = UUID.randomUUID();
+        Game game = mock(Game.class);
+        Room room = mock(Room.class);
+        GameTurn turn = mock(GameTurn.class);
+        User botUser = mock(User.class);
+
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(game));
+        when(game.getId()).thenReturn(gameId);
+        when(game.getStatus()).thenReturn(GameStatus.ACTIVE);
+        when(game.getRoom()).thenReturn(room);
+        when(room.getStatus()).thenReturn(RoomStatus.ACTIVE);
+        when(room.getWritingStyle()).thenReturn(WritingStyle.FUNNY);
+        when(room.getLanguage()).thenReturn("en");
+        when(room.getSafetyMode()).thenReturn(SafetyMode.TEEN);
+        when(gameTurnRepository.findByIdForUpdate(turnId)).thenReturn(Optional.of(turn));
+        when(turn.getGame()).thenReturn(game);
+        when(turn.getStatus()).thenReturn(GameTurnStatus.ACTIVE, GameTurnStatus.SUBMITTED);
+        when(turn.getPlayer()).thenReturn(botUser);
+        when(botUser.isBot()).thenReturn(true);
+        when(botUser.getId()).thenReturn(botUserId);
+        when(gameService.fullStoryForGame(gameId)).thenReturn("A winding story.");
+        when(wordRegistryService.acceptedWordsForGame(gameId)).thenReturn(List.of("dragon"));
+        when(wordSuggestionService.suggest(any())).thenReturn(new WordSuggestionResult("moon", "moon", "TEEN"));
+        when(gameService.submitBotWord(botUserId, gameId, turnId, "moon")).thenReturn(null);
+
+        botTurnService.playIfBotTurn(gameId, turnId);
+        botTurnService.playIfBotTurn(gameId, turnId);
+
+        verify(wordSuggestionService).suggest(any());
+        verify(gameService).submitBotWord(botUserId, gameId, turnId, "moon");
+        verify(gameTurnRepository, org.mockito.Mockito.times(2)).findByIdForUpdate(turnId);
     }
 }
