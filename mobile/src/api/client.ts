@@ -2,6 +2,8 @@ import type {
   AuthResponse,
   GameResponse,
   MeResponse,
+  PlayWithBotPayload,
+  PlayWithBotResponse,
   RandomWordSuggestionResponse,
   RoomPreviewResponse,
   RoomResponse,
@@ -11,6 +13,8 @@ import type {
   VoteResponse,
   VoteResultsResponse,
 } from "./types";
+
+export type { PlayWithBotPayload } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -159,6 +163,13 @@ export class ChainStoriesApiClient {
   startGame(roomId: string) {
     return this.request<GameResponse>(`/rooms/${encodeURIComponent(roomId)}/games/start`, {
       method: "POST",
+    });
+  }
+
+  playWithBot(payload: PlayWithBotPayload) {
+    return this.request<PlayWithBotResponse>("/games/play-with-bot", {
+      method: "POST",
+      body: payload,
     });
   }
 

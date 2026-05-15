@@ -85,6 +85,30 @@ public class Room {
             int turnLimit,
             int turnTimeoutSeconds,
             RoomVisibility visibility) {
+        this(
+                roomCode,
+                host,
+                writingStyle,
+                language,
+                safetyMode,
+                maxPlayers,
+                turnLimit,
+                turnTimeoutSeconds,
+                visibility,
+                GameMode.MULTIPLAYER);
+    }
+
+    public Room(
+            String roomCode,
+            User host,
+            WritingStyle writingStyle,
+            String language,
+            SafetyMode safetyMode,
+            int maxPlayers,
+            int turnLimit,
+            int turnTimeoutSeconds,
+            RoomVisibility visibility,
+            GameMode gameMode) {
         this.id = UUID.randomUUID();
         this.roomCode = roomCode;
         this.host = host;
@@ -96,7 +120,7 @@ public class Room {
         this.turnLimit = turnLimit;
         this.turnTimeoutSeconds = turnTimeoutSeconds;
         this.visibility = visibility;
-        this.gameMode = GameMode.MULTIPLAYER;
+        this.gameMode = gameMode;
     }
 
     @PrePersist

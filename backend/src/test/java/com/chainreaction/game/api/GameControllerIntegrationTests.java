@@ -38,7 +38,7 @@ import com.chainreaction.word.WordRegistryEntryRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-@SpringBootTest
+@SpringBootTest(properties = "app.bot.auto-submit-delay-ms=0")
 @AutoConfigureMockMvc
 class GameControllerIntegrationTests {
 
@@ -129,6 +129,50 @@ class GameControllerIntegrationTests {
                         .header("Authorization", "Bearer " + player.accessToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status", equalTo("ACTIVE")));
+    }
+
+    @Test
+    void authenticatedUserCanCreateAndStartPlayWithBotGame() throws Exception {
+        AuthResponse host = register("host-bot-game-" + UUID.randomUUID() + "@example.com", "Host");
+
+        mockMvc.perform(post("/api/v1/games/play-with-bot")
+                        .header("Authorization", "Bearer " + host.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "writingStyle", "FUNNY",
+                                "language", "en",
+                                "safetyMode", "FAMILY",
+                                "turnLimit", 10,
+                                "turnTimeoutSeconds", 60))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.room.roomId", not(blankOrNullString())))
+                .andExpect(jsonPath("$.room.roomCode", not(blankOrNullString())))
+                .andExpect(jsonPath("$.room.status", equalTo("ACTIVE")))
+                .andExpect(jsonPath("$.room.settings.writingStyle", equalTo("FUNNY")))
+                .andExpect(jsonPath("$.room.settings.language", equalTo("en")))
+                .andExpect(jsonPath("$.room.settings.safetyMode", equalTo("FAMILY")))
+                .andExpect(jsonPath("$.room.settings.maxPlayers", equalTo(2)))
+                .andExpect(jsonPath("$.room.settings.turnLimit", equalTo(10)))
+                .andExpect(jsonPath("$.room.settings.turnTimeoutSeconds", equalTo(60)))
+                .andExpect(jsonPath("$.room.settings.visibility", equalTo("PRIVATE")))
+                .andExpect(jsonPath("$.room.participants.length()", equalTo(2)))
+                .andExpect(jsonPath("$.room.participants[0].userId", equalTo(host.userId().toString())))
+                .andExpect(jsonPath("$.room.participants[0].displayName", equalTo("Host")))
+                .andExpect(jsonPath("$.room.participants[0].participantType", equalTo("HUMAN")))
+                .andExpect(jsonPath("$.room.participants[0].role", equalTo("HOST")))
+                .andExpect(jsonPath("$.room.participants[1].displayName", equalTo("StoryBot")))
+                .andExpect(jsonPath("$.room.participants[1].participantType", equalTo("BOT")))
+                .andExpect(jsonPath("$.room.participants[1].role", equalTo("PLAYER")))
+                .andExpect(jsonPath("$.game.gameId", not(blankOrNullString())))
+                .andExpect(jsonPath("$.game.status", equalTo("ACTIVE")))
+                .andExpect(jsonPath("$.game.currentTurnNumber", equalTo(1)))
+                .andExpect(jsonPath("$.game.currentTurn.turnNumber", equalTo(1)))
+                .andExpect(jsonPath("$.game.currentTurn.playerUserId", equalTo(host.userId().toString())))
+                .andExpect(jsonPath("$.game.turnOrder.length()", equalTo(2)))
+                .andExpect(jsonPath("$.game.turnOrder[0]", equalTo(host.userId().toString())))
+                .andExpect(jsonPath("$.game.storySegments.length()", equalTo(1)))
+                .andExpect(jsonPath("$.game.storySegments[0].content",
+                        equalTo("The story begins, waiting for the first word.")));
     }
 
     @Test
@@ -244,6 +288,8 @@ class GameControllerIntegrationTests {
                 .andExpect(jsonPath("$.storySegments.length()", equalTo(2)))
                 .andExpect(jsonPath("$.storySegments[1].turnNumber", equalTo(1)))
                 .andExpect(jsonPath("$.storySegments[1].authorUserId", equalTo(host.userId().toString())))
+                .andExpect(jsonPath("$.storySegments[1].playedWord", equalTo("Dragon")))
+                .andExpect(jsonPath("$.storySegments[1].playedWordNormalized", equalTo("dragon")))
                 .andExpect(jsonPath("$.fullStory", equalTo("The story begins, waiting for the first word.\n\nThe word \"dragon\" pushes the story into a stranger turn.")))
                 .andExpect(jsonPath("$.storySegments[1].content", equalTo("The word \"dragon\" pushes the story into a stranger turn.")));
 
@@ -266,6 +312,59 @@ class GameControllerIntegrationTests {
         org.assertj.core.api.Assertions.assertThat(registryEntries.get(0).getLanguage()).isEqualTo("en");
         org.assertj.core.api.Assertions.assertThat(registryEntries.get(0).getGeneratedSentence())
                 .isEqualTo("The word \"dragon\" pushes the story into a stranger turn.");
+    }
+
+    @Test
+    void botTurnAutoSubmitsAfterHumanTurnInPlayWithBotGame() throws Exception {
+        AuthResponse host = register("host-bot-auto-" + UUID.randomUUID() + "@example.com", "Host");
+
+        MvcResult playWithBotResult = mockMvc.perform(post("/api/v1/games/play-with-bot")
+                        .header("Authorization", "Bearer " + host.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "writingStyle", "FUNNY",
+                                "language", "en",
+                                "safetyMode", "TEEN",
+                                "turnLimit", 2,
+                                "turnTimeoutSeconds", 60))))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        Map<String, Object> game = responseBody(playWithBotResult, "game");
+        Map<String, Object> turn = (Map<String, Object>) game.get("currentTurn");
+        String gameId = (String) game.get("gameId");
+        String turnId = (String) turn.get("turnId");
+
+        mockMvc.perform(post("/api/v1/games/" + gameId + "/turns/" + turnId + "/submit-word")
+                        .header("Authorization", "Bearer " + host.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("word", "Dragon"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", equalTo("ACTIVE")))
+                .andExpect(jsonPath("$.currentTurnNumber", equalTo(2)))
+                .andExpect(jsonPath("$.storySegments.length()", equalTo(2)))
+                .andExpect(jsonPath("$.storySegments[1].playedWord", equalTo("Dragon")))
+                .andExpect(jsonPath("$.storySegments[1].playedWordNormalized", equalTo("dragon")));
+
+        MvcResult finalState = awaitGameState(host.accessToken(), gameId, current -> {
+            try {
+                return "VOTING".equals(current.get("status"))
+                        && ((List<?>) current.get("storySegments")).size() == 3;
+            } catch (ClassCastException exception) {
+                return false;
+            }
+        });
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> segments = (List<Map<String, Object>>) responseBody(finalState).get("storySegments");
+        org.assertj.core.api.Assertions.assertThat(segments).hasSize(3);
+        org.assertj.core.api.Assertions.assertThat(responseBody(finalState).get("status")).isEqualTo("VOTING");
+        org.assertj.core.api.Assertions.assertThat(segments.get(2).get("playedWord")).isNotNull();
+        org.assertj.core.api.Assertions.assertThat(segments.get(2).get("playedWordNormalized")).isNotNull();
+        org.assertj.core.api.Assertions.assertThat(segments.get(2).get("authorUserId")).isNotEqualTo(host.userId().toString());
+
+        var registryEntries = wordRegistryEntryRepository.findAllByGameIdOrderByCreatedAtAsc(UUID.fromString(gameId));
+        org.assertj.core.api.Assertions.assertThat(registryEntries).hasSize(2);
     }
 
     @Test
@@ -804,6 +903,23 @@ class GameControllerIntegrationTests {
         jdbcTemplate.update(
                 "UPDATE game_turns SET expires_at = now() - interval '1 second' WHERE id = ?",
                 UUID.fromString(turnId));
+    }
+
+    private MvcResult awaitGameState(
+            String accessToken,
+            String gameId,
+            java.util.function.Predicate<Map<String, Object>> condition) throws Exception {
+        for (int attempt = 0; attempt < 20; attempt++) {
+            MvcResult result = mockMvc.perform(get("/api/v1/games/" + gameId)
+                            .header("Authorization", "Bearer " + accessToken))
+                    .andExpect(status().isOk())
+                    .andReturn();
+            if (condition.test(responseBody(result))) {
+                return result;
+            }
+            Thread.sleep(100);
+        }
+        throw new AssertionError("Timed out waiting for expected game state.");
     }
 
     private record StartedGame(String gameId, String turnId) {

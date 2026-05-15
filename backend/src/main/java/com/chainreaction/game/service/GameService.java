@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -65,6 +66,7 @@ public class GameService {
     private final SubmitWordRateLimiter submitWordRateLimiter;
     private final ApplicationMetrics applicationMetrics;
     private final ApplicationObservations applicationObservations;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     public GameService(
             GameRepository gameRepository,
@@ -81,7 +83,8 @@ public class GameService {
             WordRegistryService wordRegistryService,
             SubmitWordRateLimiter submitWordRateLimiter,
             ApplicationMetrics applicationMetrics,
-            ApplicationObservations applicationObservations) {
+            ApplicationObservations applicationObservations,
+            ApplicationEventPublisher applicationEventPublisher) {
         this.gameRepository = gameRepository;
         this.gameTurnRepository = gameTurnRepository;
         this.storyRepository = storyRepository;
@@ -97,6 +100,7 @@ public class GameService {
         this.submitWordRateLimiter = submitWordRateLimiter;
         this.applicationMetrics = applicationMetrics;
         this.applicationObservations = applicationObservations;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
     @Transactional
@@ -137,7 +141,7 @@ public class GameService {
         GameResponse result = response(game, firstTurn, participants);
         applicationMetrics.recordGameStarted(room.getWritingStyle(), room.getLanguage(), room.getSafetyMode());
         publishGameEvent(game, RealtimeEventType.GAME_STARTED, result);
-        publishGameEvent(game, RealtimeEventType.TURN_STARTED, result);
+        publishTurnStarted(game, result, firstTurn.getId());
         return result;
     }
 
@@ -167,20 +171,30 @@ public class GameService {
     public GameResponse submitWord(UUID userId, UUID gameId, UUID turnId, SubmitWordRequest request) {
         return applicationObservations.observe(
                 "game.submit_word",
-                () -> submitWordObserved(userId, gameId, turnId, request));
+                () -> submitHumanWordObserved(userId, gameId, turnId, request.word()));
     }
 
-    private GameResponse submitWordObserved(UUID userId, UUID gameId, UUID turnId, SubmitWordRequest request) {
+    private GameResponse submitHumanWordObserved(UUID userId, UUID gameId, UUID turnId, String word) {
         Game game = requireActiveGame(gameId);
         requireActiveParticipant(game.getRoom().getId(), userId);
-        GameTurn turn = requireCurrentActiveTurn(game, turnId);
-        if (!turn.getPlayer().getId().equals(userId)) {
-            throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN,
-                    "Only the current player can submit a word.");
-        }
+        GameTurn turn = requireCurrentTurnForSubmitter(game, turnId, userId);
         submitWordRateLimiter.checkAllowed(userId, gameId, turnId);
+        return submitWordInternal(game, turn, userId, word);
+    }
 
-        Story story = storyRepository.findByGameId(gameId)
+    @Transactional
+    public GameResponse submitBotWord(UUID botUserId, UUID gameId, UUID turnId, String word) {
+        Game game = requireActiveGame(gameId);
+        GameTurn turn = requireCurrentTurnForSubmitter(game, turnId, botUserId);
+        if (!turn.getPlayer().isBot()) {
+            throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN,
+                    "Only bot turns can be auto-submitted.");
+        }
+        return submitWordInternal(game, turn, botUserId, word);
+    }
+
+    private GameResponse submitWordInternal(Game game, GameTurn turn, UUID userId, String submittedWord) {
+        Story story = storyRepository.findByGameId(game.getId())
                 .orElseThrow(() -> new ApiException(ErrorCode.GAME_NOT_FOUND, HttpStatus.NOT_FOUND,
                         "Story does not exist."));
         publishGameEvent(game, RealtimeEventType.AI_GENERATION_STARTED,
@@ -190,7 +204,7 @@ public class GameService {
                 turn.getId(),
                 userId,
                 game.getRoom(),
-                request.word(),
+                submittedWord,
                 fullStory(story.getId()));
 
         turn.submit();
@@ -200,7 +214,9 @@ public class GameService {
                 turn,
                 turn.getPlayer(),
                 sequenceNumber,
-                generation.sentence()));
+                generation.sentence(),
+                submittedWord.trim(),
+                generation.usedWord()));
         wordRegistryService.recordAcceptedUsage(game, turn, storySegment, generation);
 
         GameResponse result = advanceAfterTurn(game, turn);
@@ -303,8 +319,13 @@ public class GameService {
         if (game.getStatus() == GameStatus.VOTING) {
             publishGameEvent(game, RealtimeEventType.VOTING_STARTED, result);
         } else {
-            publishGameEvent(game, RealtimeEventType.TURN_STARTED, result);
+            publishTurnStarted(game, result, result.currentTurn().turnId());
         }
+    }
+
+    private void publishTurnStarted(Game game, GameResponse payload, UUID turnId) {
+        publishGameEvent(game, RealtimeEventType.TURN_STARTED, payload);
+        applicationEventPublisher.publishEvent(new TurnStartedInternalEvent(game.getId(), turnId));
     }
 
     private void publishGameEvent(Game game, RealtimeEventType type, GameResponse payload) {
@@ -318,6 +339,15 @@ public class GameService {
                     "Game is not accepting turn changes.");
         }
         return game;
+    }
+
+    private GameTurn requireCurrentTurnForSubmitter(Game game, UUID turnId, UUID userId) {
+        GameTurn turn = requireCurrentActiveTurn(game, turnId);
+        if (!turn.getPlayer().getId().equals(userId)) {
+            throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN,
+                    "Only the current player can submit a word.");
+        }
+        return turn;
     }
 
     private GameTurn requireCurrentActiveTurn(Game game, UUID turnId) {
@@ -393,6 +423,14 @@ public class GameService {
                 .map(StorySegment::getContent)
                 .reduce((first, second) -> first + "\n\n" + second)
                 .orElse("");
+    }
+
+    @Transactional(readOnly = true)
+    public String fullStoryForGame(UUID gameId) {
+        Story story = storyRepository.findByGameId(gameId)
+                .orElseThrow(() -> new ApiException(ErrorCode.GAME_NOT_FOUND, HttpStatus.NOT_FOUND,
+                        "Story does not exist."));
+        return fullStory(story.getId());
     }
 
     private com.chainreaction.user.domain.User nextPlayer(List<RoomParticipant> participants, int turnNumber) {

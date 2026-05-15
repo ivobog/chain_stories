@@ -23,11 +23,15 @@ import com.chainreaction.room.api.RoomResponse;
 import com.chainreaction.room.api.RoomSettingsResponse;
 import com.chainreaction.room.api.RoomSummaryResponse;
 import com.chainreaction.room.api.UpdateRoomSettingsRequest;
+import com.chainreaction.room.domain.GameMode;
 import com.chainreaction.room.domain.Room;
 import com.chainreaction.room.domain.RoomParticipant;
 import com.chainreaction.room.domain.RoomParticipantRole;
 import com.chainreaction.room.domain.RoomParticipantStatus;
 import com.chainreaction.room.domain.RoomStatus;
+import com.chainreaction.room.domain.RoomVisibility;
+import com.chainreaction.room.domain.SafetyMode;
+import com.chainreaction.room.domain.WritingStyle;
 import com.chainreaction.room.repository.RoomParticipantRepository;
 import com.chainreaction.room.repository.RoomRepository;
 import com.chainreaction.subscription.service.EntitlementService;
@@ -84,21 +88,48 @@ public class RoomService {
     private RoomResponse createRoomObserved(UUID userId, CreateRoomRequest request) {
         User host = requireActiveUser(userId);
         assertWithinPlanLimit(userId, request.maxPlayers());
-
-        String roomCode = generateUniqueRoomCode();
-        Room room = roomRepository.save(new Room(
-                roomCode,
+        Room room = createRoomEntity(
                 host,
                 request.writingStyle(),
-                request.language().toLowerCase(),
+                request.language(),
                 request.safetyMode(),
                 request.maxPlayers(),
                 request.turnLimit(),
                 request.turnTimeoutSeconds(),
-                request.visibility()));
-        roomParticipantRepository.save(new RoomParticipant(room, host, RoomParticipantRole.HOST));
+                request.visibility(),
+                GameMode.MULTIPLAYER);
+        addParticipant(room, host, RoomParticipantRole.HOST);
         applicationMetrics.recordRoomCreated(room.getWritingStyle(), room.getLanguage(), room.getSafetyMode());
         return response(room);
+    }
+
+    @Transactional
+    public Room createPlayWithBotRoom(
+            User host,
+            WritingStyle writingStyle,
+            String language,
+            SafetyMode safetyMode,
+            int turnLimit,
+            int turnTimeoutSeconds) {
+        assertWithinPlanLimit(host.getId(), 2);
+        Room room = createRoomEntity(
+                host,
+                writingStyle,
+                language,
+                safetyMode,
+                2,
+                turnLimit,
+                turnTimeoutSeconds,
+                RoomVisibility.PRIVATE,
+                GameMode.PLAY_WITH_BOT);
+        addParticipant(room, host, RoomParticipantRole.HOST);
+        applicationMetrics.recordRoomCreated(room.getWritingStyle(), room.getLanguage(), room.getSafetyMode());
+        return room;
+    }
+
+    @Transactional
+    public RoomParticipant addBotParticipant(Room room, User bot) {
+        return addParticipant(room, bot, RoomParticipantRole.PLAYER);
     }
 
     @Transactional(readOnly = true)
@@ -256,9 +287,16 @@ public class RoomService {
     }
 
     private void transferOrCloseRoom(Room room, RoomParticipant departingHost) {
+        if (room.getGameMode() == GameMode.PLAY_WITH_BOT) {
+            departingHost.demoteToPlayer();
+            room.close();
+            return;
+        }
+
         roomParticipantRepository.findAllByRoomIdOrderByJoinedAtAsc(room.getId()).stream()
                 .filter(candidate -> candidate.getStatus() == RoomParticipantStatus.JOINED)
                 .filter(candidate -> !candidate.getUser().getId().equals(departingHost.getUser().getId()))
+                .filter(candidate -> candidate.getUser().isHuman())
                 .findFirst()
                 .ifPresentOrElse(nextHost -> {
                     departingHost.demoteToPlayer();
@@ -351,6 +389,34 @@ public class RoomService {
         return roomRepository.findById(roomId)
                 .orElseThrow(() -> new ApiException(ErrorCode.ROOM_NOT_FOUND, HttpStatus.NOT_FOUND,
                         "Room does not exist."));
+    }
+
+    private Room createRoomEntity(
+            User host,
+            WritingStyle writingStyle,
+            String language,
+            SafetyMode safetyMode,
+            int maxPlayers,
+            int turnLimit,
+            int turnTimeoutSeconds,
+            RoomVisibility visibility,
+            GameMode gameMode) {
+        String roomCode = generateUniqueRoomCode();
+        return roomRepository.save(new Room(
+                roomCode,
+                host,
+                writingStyle,
+                language.toLowerCase(),
+                safetyMode,
+                maxPlayers,
+                turnLimit,
+                turnTimeoutSeconds,
+                visibility,
+                gameMode));
+    }
+
+    private RoomParticipant addParticipant(Room room, User user, RoomParticipantRole role) {
+        return roomParticipantRepository.save(new RoomParticipant(room, user, role));
     }
 
     private RoomResponse response(Room room) {

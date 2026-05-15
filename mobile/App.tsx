@@ -22,6 +22,7 @@ import {
   type CreateRoomPayload,
   type GameResponse,
   type MeResponse,
+  type PlayWithBotPayload,
   type RandomWordSuggestionResponse,
   type RoomPreviewResponse,
   type RealtimeEvent,
@@ -34,6 +35,7 @@ import {
   type VoteResultsResponse,
   type WritingStyle,
 } from "./src/api";
+import { renderableStoryText } from "./src/story-text";
 
 const DEFAULT_API_BASE_URL = "http://localhost:8080";
 const SESSION_KEYS = {
@@ -71,6 +73,14 @@ const defaultRoomPayload: CreateRoomPayload = {
   turnLimit: 8,
   turnTimeoutSeconds: 45,
   visibility: "PRIVATE",
+};
+
+const defaultPlayWithBotPayload: PlayWithBotPayload = {
+  writingStyle: "FUNNY",
+  language: "en",
+  safetyMode: "TEEN",
+  turnLimit: 10,
+  turnTimeoutSeconds: 60,
 };
 
 export default function App() {
@@ -429,6 +439,19 @@ export default function App() {
     });
   }
 
+  async function playWithBot() {
+    await runApiAction("Creating bot game", async (client) => {
+      const response = await client.playWithBot(defaultPlayWithBotPayload);
+      setActiveRoom(response.room);
+      setActiveGame(response.game);
+      setSuggestion(null);
+      setVoteResults(null);
+      setVotedCategories([]);
+      setAiGeneratingGameId(null);
+      setRooms(await client.listRooms());
+    });
+  }
+
   async function previewRoom(roomCode: string) {
     await runApiAction("Previewing room", async (client) => {
       setRoomPreview(await client.previewRoom(roomCode.trim().toUpperCase()));
@@ -675,6 +698,7 @@ export default function App() {
               rooms={rooms}
               onRefreshRooms={refreshRooms}
               onCreateRoom={() => setShowCreateRoom(true)}
+              onPlayWithBot={playWithBot}
               onOpenJoinRoom={() => setShowJoinRoom(true)}
               onOpenRoom={openRoom}
               onOpenSettings={openSettings}
@@ -741,6 +765,7 @@ function HomeScreen({
   rooms,
   onRefreshRooms,
   onCreateRoom,
+  onPlayWithBot,
   onOpenJoinRoom,
   onOpenRoom,
   onOpenSettings,
@@ -751,6 +776,7 @@ function HomeScreen({
   rooms: RoomSummaryResponse[];
   onRefreshRooms: () => void;
   onCreateRoom: () => void;
+  onPlayWithBot: () => void;
   onOpenJoinRoom: () => void;
   onOpenRoom: (roomId: string) => void;
   onOpenSettings: () => void;
@@ -773,6 +799,7 @@ function HomeScreen({
         <Text style={styles.sectionTitle}>Rooms</Text>
         <View style={styles.buttonRow}>
           <PrimaryButton label="Create room" onPress={onCreateRoom} />
+          <PrimaryButton label="Play with Bot" onPress={onPlayWithBot} />
           <SecondaryButton label="Join by code" onPress={onOpenJoinRoom} />
         </View>
       </View>
@@ -1017,7 +1044,9 @@ function LobbyScreen({
         <View key={participant.userId} style={styles.listItem}>
           <View>
             <Text style={styles.listTitle}>{participant.displayName}</Text>
-            <Text style={styles.muted}>{participant.status}</Text>
+            <Text style={styles.muted}>
+              {participant.status} / {participant.participantType}
+            </Text>
           </View>
           <View style={styles.participantActions}>
             <Text style={styles.badge}>{participant.role}</Text>
@@ -1218,9 +1247,11 @@ function GameScreen({
 }) {
   const [word, setWord] = useState("");
   const [now, setNow] = useState(() => Date.now());
-  const isMyTurn = game.status === "ACTIVE" && game.currentTurn.playerUserId === currentUserId;
+  const currentPlayer = room?.participants.find((participant) => participant.userId === game.currentTurn.playerUserId) ?? null;
+  const isBotTurn = currentPlayer?.participantType === "BOT";
+  const isMyTurn = game.status === "ACTIVE" && game.currentTurn.playerUserId === currentUserId && !isBotTurn;
   const currentPlayerName = playerName(game.currentTurn.playerUserId, room);
-  const turnLabel = isMyTurn ? "Your turn" : `Waiting for ${currentPlayerName}`;
+  const turnLabel = isMyTurn ? "Your turn" : isBotTurn ? `${currentPlayerName} turn` : `Waiting for ${currentPlayerName}`;
   const wordValidation = validateOneWord(word);
   const canSubmitWord = isMyTurn && wordValidation.valid;
   const turnExpiresIn = game.status === "ACTIVE" ? formatTimeRemaining(game.currentTurn.expiresAt, now) : "";
@@ -1274,9 +1305,7 @@ function GameScreen({
         <View style={styles.panel}>
           <Text style={styles.sectionTitle}>Word</Text>
           <Text style={styles.muted}>
-            {isMyTurn
-              ? "Submit exactly one word to push the story forward."
-              : `${currentPlayerName} is choosing a word.`}
+            {isMyTurn ? "Submit exactly one word to push the story forward." : `${currentPlayerName} is choosing a word.`}
           </Text>
           {isGenerating ? (
             <View style={styles.aiStatus}>
@@ -1284,18 +1313,28 @@ function GameScreen({
               <Text style={styles.aiStatusText}>AI is writing the next sentence.</Text>
             </View>
           ) : null}
-          {suggestion ? (
+          {isBotTurn ? (
+            <View style={styles.aiStatus}>
+              <ActivityIndicator color="#0f766e" />
+              <Text style={styles.aiStatusText}>{currentPlayerName} is choosing a word...</Text>
+            </View>
+          ) : null}
+          {suggestion && !isBotTurn ? (
             <Pressable style={styles.suggestion} onPress={useSuggestion}>
               <Text style={styles.suggestionWord}>{suggestion.word}</Text>
               <Text style={styles.muted}>Tap to use suggestion</Text>
             </Pressable>
           ) : null}
-          <Field label="One word" value={word} onChangeText={setWord} autoCapitalize="none" />
-          {wordValidation.message ? <Text style={styles.validationText}>{wordValidation.message}</Text> : null}
-          <View style={styles.buttonRow}>
-            <PrimaryButton label="Submit word" onPress={submit} disabled={!canSubmitWord} />
-            <SecondaryButton label="Random word" onPress={onRandomWord} disabled={!isMyTurn} />
-          </View>
+          {!isBotTurn ? (
+            <>
+              <Field label="One word" value={word} onChangeText={setWord} autoCapitalize="none" />
+              {wordValidation.message ? <Text style={styles.validationText}>{wordValidation.message}</Text> : null}
+              <View style={styles.buttonRow}>
+                <PrimaryButton label="Submit word" onPress={submit} disabled={!canSubmitWord} />
+                <SecondaryButton label="Random word" onPress={onRandomWord} disabled={!isMyTurn} />
+              </View>
+            </>
+          ) : null}
         </View>
       ) : null}
 
@@ -1317,7 +1356,13 @@ function GameScreen({
             <Text style={styles.storyMeta}>
               {segment.turnNumber === null ? "Opening" : `Turn ${segment.turnNumber}`}
             </Text>
-            <Text style={styles.storyText}>{segment.content}</Text>
+            <Text style={styles.storyText}>
+              {renderableStoryText(segment).map((part, index) => (
+                <Text key={`${segment.segmentId}-${index}`} style={part.bold ? styles.storyPlayedWord : undefined}>
+                  {part.text}
+                </Text>
+              ))}
+            </Text>
           </View>
         ))}
       </View>
@@ -1951,6 +1996,9 @@ const styles = StyleSheet.create({
     color: "#1f2a24",
     fontSize: 16,
     lineHeight: 23,
+  },
+  storyPlayedWord: {
+    fontWeight: "800",
   },
   voteCategory: {
     borderColor: "#e7edf3",

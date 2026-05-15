@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, ChainStoriesApiClient, type CreateRoomPayload } from "./client";
+import { ApiError, ChainStoriesApiClient, type CreateRoomPayload, type PlayWithBotPayload } from "./client";
 
 const BASE_URL = "http://localhost:8080";
 const ACCESS_TOKEN = "access-token";
@@ -228,6 +228,32 @@ describe("ChainStoriesApiClient", () => {
     expect(startFetch).toHaveBeenCalledWith(`${BASE_URL}/api/v1/rooms/room-id/games/start`, postWithoutBodyHeaders());
   });
 
+  it("creates a play-with-bot game with the expected payload", async () => {
+    const payload: PlayWithBotPayload = {
+      writingStyle: "FUNNY",
+      language: "en",
+      safetyMode: "TEEN",
+      turnLimit: 10,
+      turnTimeoutSeconds: 60,
+    };
+    const fetchMock = mockJsonResponse({
+      room: roomResponse(),
+      game: gameResponse(),
+    });
+
+    await new ChainStoriesApiClient(BASE_URL, ACCESS_TOKEN).playWithBot(payload);
+
+    expect(fetchMock).toHaveBeenCalledWith(`${BASE_URL}/api/v1/games/play-with-bot`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  });
+
   it("loads and updates the signed-in profile", async () => {
     const meFetch = mockJsonResponse({
       userId: "user-id",
@@ -431,7 +457,15 @@ function roomResponse() {
     status: "LOBBY",
     hostUserId: "host-id",
     settings: roomSettings(),
-    participants: [],
+    participants: [
+      {
+        userId: "host-id",
+        displayName: "Host",
+        participantType: "HUMAN",
+        role: "HOST",
+        status: "JOINED",
+      },
+    ],
   };
 }
 
@@ -457,7 +491,17 @@ function gameResponse() {
     turnOrder: ["user-id"],
     turns: [],
     fullStory: "Once upon a time.",
-    storySegments: [],
+    storySegments: [
+      {
+        segmentId: "segment-id",
+        sequenceNumber: 1,
+        turnNumber: null,
+        authorUserId: null,
+        content: "Once upon a time.",
+        playedWord: null,
+        playedWordNormalized: null,
+      },
+    ],
   };
 }
 

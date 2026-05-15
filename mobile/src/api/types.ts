@@ -1,6 +1,7 @@
 export type RoomStatus = "LOBBY" | "ACTIVE" | "CLOSED" | "EXPIRED" | "BANNED";
 export type RoomParticipantRole = "HOST" | "PLAYER";
 export type RoomParticipantStatus = "JOINED" | "LEFT" | "KICKED";
+export type ParticipantType = "HUMAN" | "BOT";
 export type WritingStyle =
   | "FUNNY"
   | "HORROR"
@@ -67,6 +68,7 @@ export interface RoomSettingsResponse {
 export interface RoomParticipantResponse {
   userId: string;
   displayName: string;
+  participantType: ParticipantType;
   role: RoomParticipantRole;
   status: RoomParticipantStatus;
 }
@@ -117,6 +119,8 @@ export interface StorySegmentResponse {
   turnNumber: number | null;
   authorUserId: string | null;
   content: string;
+  playedWord: string | null;
+  playedWordNormalized: string | null;
 }
 
 export interface GameResponse {
@@ -133,6 +137,19 @@ export interface GameResponse {
   turns: GameTurnResponse[];
   fullStory: string;
   storySegments: StorySegmentResponse[];
+}
+
+export interface PlayWithBotPayload {
+  writingStyle: WritingStyle;
+  language: string;
+  safetyMode: SafetyMode;
+  turnLimit: number;
+  turnTimeoutSeconds: number;
+}
+
+export interface PlayWithBotResponse {
+  room: RoomResponse;
+  game: GameResponse;
 }
 
 export interface RandomWordSuggestionResponse {

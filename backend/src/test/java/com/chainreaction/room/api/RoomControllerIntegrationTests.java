@@ -506,6 +506,45 @@ class RoomControllerIntegrationTests {
                 .andExpect(jsonPath("$.errorCode", equalTo("ROOM_CLOSED")));
     }
 
+    @Test
+    void playWithBotHostLeavingClosesRoomWithoutPromotingBot() throws Exception {
+        AuthResponse host = register("host-bot-leave-" + UUID.randomUUID() + "@example.com", "Host");
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/games/play-with-bot")
+                        .header("Authorization", "Bearer " + host.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "writingStyle", "FUNNY",
+                                "language", "en",
+                                "safetyMode", "TEEN",
+                                "turnLimit", 10,
+                                "turnTimeoutSeconds", 60))))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        Map<String, Object> payload = responseBody(createResult);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> room = (Map<String, Object>) payload.get("room");
+        String roomId = (String) room.get("roomId");
+        String roomCode = (String) room.get("roomCode");
+
+        mockMvc.perform(post("/api/v1/rooms/" + roomId + "/leave")
+                        .header("Authorization", "Bearer " + host.accessToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", equalTo("CLOSED")))
+                .andExpect(jsonPath("$.participants[0].role", equalTo("PLAYER")))
+                .andExpect(jsonPath("$.participants[0].status", equalTo("LEFT")))
+                .andExpect(jsonPath("$.participants[1].participantType", equalTo("BOT")))
+                .andExpect(jsonPath("$.participants[1].role", equalTo("PLAYER")))
+                .andExpect(jsonPath("$.participants[1].status", equalTo("JOINED")));
+
+        AuthResponse latePlayer = register("late-bot-leave-" + UUID.randomUUID() + "@example.com", "Late");
+        mockMvc.perform(post("/api/v1/rooms/" + roomCode + "/join")
+                        .header("Authorization", "Bearer " + latePlayer.accessToken()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode", equalTo("ROOM_CLOSED")));
+    }
+
     private ResultActions createRoom(String accessToken, int maxPlayers) throws Exception {
         return mockMvc.perform(post("/api/v1/rooms")
                 .header("Authorization", "Bearer " + accessToken)
