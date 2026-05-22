@@ -17,6 +17,8 @@ const CORE_WRITING_STYLES = [
   "EPIC",
   "CREEPY",
   "POETIC_PROSE",
+  "CHAT_CONVERSATION",
+  "IMPROVISED_THEATRE",
 ] as const satisfies readonly WritingStyle[];
 
 const CLASSIC_AUTHOR_WRITING_STYLES = [
@@ -59,6 +61,8 @@ export const STYLE_LABELS: Record<WritingStyle, string> = {
   OSCAR_WILDE: "Oscar Wilde",
   NIKOLAI_GOGOL: "Nikolai Gogol",
   MIGUEL_DE_CERVANTES: "Miguel de Cervantes",
+  CHAT_CONVERSATION: "Chat conversation",
+  IMPROVISED_THEATRE: "Improvise theatre",
 };
 
 export function styleLabel(style: WritingStyle) {

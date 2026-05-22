@@ -22,6 +22,8 @@ describe("writing style catalog", () => {
       "OSCAR_WILDE",
       "NIKOLAI_GOGOL",
       "MIGUEL_DE_CERVANTES",
+      "CHAT_CONVERSATION",
+      "IMPROVISED_THEATRE",
     ]);
   });
 
@@ -41,6 +43,8 @@ describe("writing style catalog", () => {
           "EPIC",
           "CREEPY",
           "POETIC_PROSE",
+          "CHAT_CONVERSATION",
+          "IMPROVISED_THEATRE",
         ],
       },
       {

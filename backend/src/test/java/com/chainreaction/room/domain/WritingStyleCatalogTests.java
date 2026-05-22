@@ -36,6 +36,8 @@ class WritingStyleCatalogTests {
                         "EDGAR_ALLAN_POE",
                         "OSCAR_WILDE",
                         "NIKOLAI_GOGOL",
-                        "MIGUEL_DE_CERVANTES");
+                        "MIGUEL_DE_CERVANTES",
+                        "CHAT_CONVERSATION",
+                        "IMPROVISED_THEATRE");
     }
 }

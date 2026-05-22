@@ -39,6 +39,8 @@ public class WordSuggestionService {
         WORDS_BY_STYLE.put(WritingStyle.OSCAR_WILDE, List.of("salon", "mirror", "orchid", "secret", "portrait"));
         WORDS_BY_STYLE.put(WritingStyle.NIKOLAI_GOGOL, List.of("overcoat", "clerk", "stamp", "nose", "bureau"));
         WORDS_BY_STYLE.put(WritingStyle.MIGUEL_DE_CERVANTES, List.of("windmill", "helmet", "inn", "road", "squire"));
+        WORDS_BY_STYLE.put(WritingStyle.CHAT_CONVERSATION, List.of("night", "life", "today", "home", "plan"));
+        WORDS_BY_STYLE.put(WritingStyle.IMPROVISED_THEATRE, List.of("thief", "guest", "hero", "hate", "love"));
     }
 
     private final WordModerationService wordModerationService;

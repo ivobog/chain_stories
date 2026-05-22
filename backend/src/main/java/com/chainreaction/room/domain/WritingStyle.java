@@ -51,9 +51,15 @@ public enum WritingStyle {
             "Use public-domain grotesque social comedy: absurd bureaucracy, anxious officials, surreal realism, awkward dignity, and escalating ridiculousness. Avoid direct quotation."),
     MIGUEL_DE_CERVANTES(
             "Miguel de Cervantes",
-            "Use public-domain picaresque adventure: playful narration, noble delusion, comic dignity, travel, mishaps, and the tension between idealism and reality. Avoid direct quotation.");
-
-    private final String displayLabel;
+            "Use public-domain picaresque adventure: playful narration, noble delusion, comic dignity, travel, mishaps, and the tension between idealism and reality. Avoid direct quotation."),
+	IMPROVISED_THEATRE(
+			"Improvised_Theatre",
+			"Write the story like an improvised theatre scene. React creatively to the inserted player word and make it feel important to the scene. Use energetic dialogue, quick reversals, emotional reactions, and theatrical action beats. Do not ignore the word. Do not force it awkwardly. Let it naturally twist the scene."),
+    CHAT_CONVERSATION(
+    		"Chat Conversation",
+    		"Write the story as a chat conversation between characters. Use short messages, usernames, reactions, pauses, typos only when funny or meaningful, and escalating misunderstandings. Let the story unfold through messages rather than narration. Keep it fast, playful, and easy to read.");
+	
+	private final String displayLabel;
     private final String guidance;
 
     WritingStyle(String displayLabel, String guidance) {

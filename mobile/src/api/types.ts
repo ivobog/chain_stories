@@ -14,6 +14,8 @@ export type WritingStyle =
   | "EPIC"
   | "CREEPY"
   | "POETIC_PROSE"
+  | "CHAT_CONVERSATION"
+  | "IMPROVISED_THEATRE"
   | "HOMER"
   | "WILLIAM_SHAKESPEARE"
   | "EDGAR_ALLAN_POE"

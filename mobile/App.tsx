@@ -76,7 +76,7 @@ const defaultRoomPayload: CreateRoomPayload = {
 };
 
 const defaultPlayWithBotPayload: PlayWithBotPayload = {
-  writingStyle: "FUNNY",
+  writingStyle: "OSCAR_WILDE",
   language: "en",
   safetyMode: "TEEN",
   turnLimit: 10,
