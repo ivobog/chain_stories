@@ -55,14 +55,14 @@ export const STYLE_LABELS: Record<WritingStyle, string> = {
   EPIC: "Epic",
   CREEPY: "Creepy",
   POETIC_PROSE: "Poetic prose",
+  CHAT_CONVERSATION: "Chat conversation",
+  IMPROVISED_THEATRE: "Improvised theatre",
   HOMER: "Homer",
   WILLIAM_SHAKESPEARE: "William Shakespeare",
   EDGAR_ALLAN_POE: "Edgar Allan Poe",
   OSCAR_WILDE: "Oscar Wilde",
   NIKOLAI_GOGOL: "Nikolai Gogol",
   MIGUEL_DE_CERVANTES: "Miguel de Cervantes",
-  CHAT_CONVERSATION: "Chat conversation",
-  IMPROVISED_THEATRE: "Improvise theatre",
 };
 
 export function styleLabel(style: WritingStyle) {

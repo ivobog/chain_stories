@@ -17,7 +17,7 @@ class WritingStyleCatalogTests {
     }
 
     @Test
-    void approvedCatalogContainsExactlySeventeenStyles() {
+    void approvedCatalogContainsExactlyNineteenStyles() {
         assertThat(Arrays.stream(WritingStyle.values()).map(Enum::name))
                 .containsExactly(
                         "FUNNY",
@@ -31,13 +31,13 @@ class WritingStyleCatalogTests {
                         "EPIC",
                         "CREEPY",
                         "POETIC_PROSE",
+                        "CHAT_CONVERSATION",
+                        "IMPROVISED_THEATRE",
                         "HOMER",
                         "WILLIAM_SHAKESPEARE",
                         "EDGAR_ALLAN_POE",
                         "OSCAR_WILDE",
                         "NIKOLAI_GOGOL",
-                        "MIGUEL_DE_CERVANTES",
-                        "CHAT_CONVERSATION",
-                        "IMPROVISED_THEATRE");
+                        "MIGUEL_DE_CERVANTES");
     }
 }

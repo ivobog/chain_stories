@@ -34,6 +34,12 @@ public enum WritingStyle {
     POETIC_PROSE(
             "Poetic prose",
             "Use lyrical rhythm, vivid sensory imagery, metaphor, and emotional resonance. Keep the sentence elegant and precise, not overly purple or confusing."),
+    CHAT_CONVERSATION(
+            "Chat conversation",
+            "Write the story as a chat conversation between characters. Use short messages, usernames, reactions, pauses, typos only when funny or meaningful, and escalating misunderstandings. Let the story unfold through messages rather than narration. Keep it fast, playful, and easy to read."),
+    IMPROVISED_THEATRE(
+            "Improvised theatre",
+            "Write the story like an improvised theatre scene. React creatively to the inserted player word and make it feel important to the scene. Use energetic dialogue, quick reversals, emotional reactions, and theatrical action beats. Do not ignore the word. Do not force it awkwardly. Let it naturally twist the scene."),
     HOMER(
             "Homer",
             "Use public-domain ancient epic flavor: invocations, fate, gods, omens, heroic epithets, journeys, feasts, and battle imagery. Do not quote or imitate any modern copyrighted translation verbatim."),
@@ -51,15 +57,9 @@ public enum WritingStyle {
             "Use public-domain grotesque social comedy: absurd bureaucracy, anxious officials, surreal realism, awkward dignity, and escalating ridiculousness. Avoid direct quotation."),
     MIGUEL_DE_CERVANTES(
             "Miguel de Cervantes",
-            "Use public-domain picaresque adventure: playful narration, noble delusion, comic dignity, travel, mishaps, and the tension between idealism and reality. Avoid direct quotation."),
-	IMPROVISED_THEATRE(
-			"Improvised_Theatre",
-			"Write the story like an improvised theatre scene. React creatively to the inserted player word and make it feel important to the scene. Use energetic dialogue, quick reversals, emotional reactions, and theatrical action beats. Do not ignore the word. Do not force it awkwardly. Let it naturally twist the scene."),
-    CHAT_CONVERSATION(
-    		"Chat Conversation",
-    		"Write the story as a chat conversation between characters. Use short messages, usernames, reactions, pauses, typos only when funny or meaningful, and escalating misunderstandings. Let the story unfold through messages rather than narration. Keep it fast, playful, and easy to read.");
-	
-	private final String displayLabel;
+            "Use public-domain picaresque adventure: playful narration, noble delusion, comic dignity, travel, mishaps, and the tension between idealism and reality. Avoid direct quotation.");
+
+    private final String displayLabel;
     private final String guidance;
 
     WritingStyle(String displayLabel, String guidance) {

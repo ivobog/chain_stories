@@ -69,14 +69,14 @@ Approved writing styles for room create/update requests:
 - `EPIC`
 - `CREEPY`
 - `POETIC_PROSE`
+- `CHAT_CONVERSATION`
+- `IMPROVISED_THEATRE`
 - `HOMER`
 - `WILLIAM_SHAKESPEARE`
 - `EDGAR_ALLAN_POE`
 - `OSCAR_WILDE`
 - `NIKOLAI_GOGOL`
 - `MIGUEL_DE_CERVANTES`
-- `CHAT_CONVERSATION`
-- `IMPROVISED_THEATRE`
 
 The backend resolves human-readable labels and LLM style guidance server-side. Mobile groups these into core styles and classic author styles for readability, but the API contract uses the enum values above.
 

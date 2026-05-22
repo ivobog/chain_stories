@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { STYLE_LABELS, WRITING_STYLES, WRITING_STYLE_GROUPS, styleLabel } from "./writing-styles";
 
 describe("writing style catalog", () => {
-  it("contains the approved 17-style catalog in order", () => {
+  it("contains the approved 19-style catalog in order", () => {
     expect(WRITING_STYLES).toEqual([
       "FUNNY",
       "HORROR",
@@ -16,14 +16,14 @@ describe("writing style catalog", () => {
       "EPIC",
       "CREEPY",
       "POETIC_PROSE",
+      "CHAT_CONVERSATION",
+      "IMPROVISED_THEATRE",
       "HOMER",
       "WILLIAM_SHAKESPEARE",
       "EDGAR_ALLAN_POE",
       "OSCAR_WILDE",
       "NIKOLAI_GOGOL",
       "MIGUEL_DE_CERVANTES",
-      "CHAT_CONVERSATION",
-      "IMPROVISED_THEATRE",
     ]);
   });
 
